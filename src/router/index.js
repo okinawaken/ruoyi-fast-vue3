@@ -65,6 +65,63 @@ export const constantRoutes = [
     ]
   },
   {
+    path: '/study',
+    component: Layout,
+    redirect: '/study/overview',
+    name: 'Study',
+    meta: { title: '自习室', icon: 'education', alwaysShow: true },
+    children: [
+      {
+        path: 'overview',
+        component: () => import('@/views/study/index'),
+        name: 'StudyOverview',
+        meta: { title: '概览', icon: 'dashboard' }
+      },
+      {
+        path: 'reserve',
+        component: () => import('@/views/study/reserve'),
+        name: 'StudyReserve',
+        meta: { title: '预约选座', icon: 'date' }
+      },
+      {
+        path: 'auto-reserve',
+        component: () => import('@/views/study/auto-reserve'),
+        name: 'StudyAutoReserve',
+        meta: { title: '自动预约', icon: 'time' }
+      },
+      {
+        path: 'auto-reserve-setting',
+        component: () => import('@/views/study/auto-reserve-setting'),
+        name: 'StudyAutoReserveSetting',
+        meta: { title: '自动预约配置', icon: 'edit' }
+      },
+      {
+        path: 'sign',
+        component: () => import('@/views/study/sign'),
+        name: 'StudySign',
+        meta: { title: '在座与签到', icon: 'time' }
+      },
+      {
+        path: 'packages',
+        component: () => import('@/views/study/packages'),
+        name: 'StudyPackages',
+        meta: { title: '套餐中心', icon: 'shopping' }
+      },
+      {
+        path: 'voucher',
+        component: () => import('@/views/study/voucher'),
+        name: 'StudyVoucher',
+        meta: { title: '团购券核销', icon: 'money' }
+      },
+      {
+        path: 'cabinet',
+        component: () => import('@/views/study/cabinet'),
+        name: 'StudyCabinet',
+        meta: { title: '储物柜', icon: 'lock' }
+      }
+    ]
+  },
+  {
     path: '/system',
     component: Layout,
     redirect: '/system/user',
@@ -102,10 +159,10 @@ export const constantRoutes = [
         meta: { title: '操作日志', icon: 'form' }
       },
       {
-        path: 'logininfor',
-        component: () => import('@/views/monitor/logininfor/index'),
-        name: 'Logininfor',
-        meta: { title: '登录日志', icon: 'logininfor' }
+        path: 'logininfo',
+        component: () => import('@/views/monitor/logininfo/index'),
+        name: 'Logininfo',
+        meta: { title: '登录日志', icon: 'logininfo' }
       },
       {
         path: 'dict-data/index/:dictId(\\d+)',
