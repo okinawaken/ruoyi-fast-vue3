@@ -114,11 +114,3 @@ export const PAGE_PATH = {
  * 门店二维码默认内容（签到专用码），扫码门店的输入框默认填入该值
  */
 export const DEFAULT_VENUE_QR_CODE = '签到专用码'
-
-/**
- * 预约资格校验结果：0 可预约 / 1 不可预约
- */
-export const RESERVE_STATE = {
-  CAN: 0,
-  CANNOT: 1
-}

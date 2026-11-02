@@ -230,9 +230,11 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { studyLeaveApi, studyPackageApi, studyRepairApi, studyVenueApi } from '@/api/study'
+import { studyLeaveApi, studyPackageApi, studyRepairApi } from '@/api/study'
 import useStudyStore from '@/store/modules/study'
 import { formatMoney, formatTimestamp } from '@/utils/study/format'
+import { useLatestRequest } from '@/composables/study/useLatestRequest'
+import { useVenueOptions } from '@/composables/study/useVenueOptions'
 
 const props = defineProps({
   refreshSeq: { type: Number, default: 0 },
@@ -247,13 +249,13 @@ const activeTab = ref('packages')
 const userPackages = ref([])
 const orders = ref([])
 const repairs = ref([])
-const venueList = ref([])
+const { venues: venueList, load: loadVenueOptions } = useVenueOptions({ filter: false })
 
 const packageLoading = ref(false)
 const orderLoading = ref(false)
 const repairLoading = ref(false)
 
-let loadSeq = 0
+const loadRequest = useLatestRequest()
 
 const busy = computed(() => packageLoading.value || orderLoading.value || repairLoading.value)
 
@@ -281,14 +283,14 @@ async function loadPackages(seq) {
   packageLoading.value = true
   try {
     const res = await studyPackageApi.userPackageList()
-    if (seq !== loadSeq) {
+    if (!loadRequest.isLatest(seq)) {
       return
     }
     userPackages.value = res?.data?.list || []
   } catch (e) {
     store.handleApiError(e)
   } finally {
-    if (seq === loadSeq) {
+    if (loadRequest.isLatest(seq)) {
       packageLoading.value = false
     }
   }
@@ -298,14 +300,14 @@ async function loadOrders(seq) {
   orderLoading.value = true
   try {
     const res = await studyPackageApi.userOrderList()
-    if (seq !== loadSeq) {
+    if (!loadRequest.isLatest(seq)) {
       return
     }
     orders.value = res?.data?.list || []
   } catch (e) {
     store.handleApiError(e)
   } finally {
-    if (seq === loadSeq) {
+    if (loadRequest.isLatest(seq)) {
       orderLoading.value = false
     }
   }
@@ -315,14 +317,14 @@ async function loadRepairs(seq) {
   repairLoading.value = true
   try {
     const res = await studyRepairApi.list()
-    if (seq !== loadSeq) {
+    if (!loadRequest.isLatest(seq)) {
       return
     }
     repairs.value = res?.data?.list || []
   } catch (e) {
     store.handleApiError(e)
   } finally {
-    if (seq === loadSeq) {
+    if (loadRequest.isLatest(seq)) {
       repairLoading.value = false
     }
   }
@@ -330,8 +332,7 @@ async function loadRepairs(seq) {
 
 async function loadVenues() {
   try {
-    const res = await studyVenueApi.reserveSelect()
-    venueList.value = res?.data?.venueList || []
+    await loadVenueOptions()
   } catch (e) {
     venueList.value = []
   }
@@ -341,7 +342,7 @@ async function loadAll() {
   if (!store.isTokenValid) {
     return
   }
-  const seq = ++loadSeq
+  const seq = loadRequest.next()
   await Promise.allSettled([loadPackages(seq), loadOrders(seq), loadRepairs(seq)])
 }
 
@@ -404,7 +405,7 @@ async function submitLeave() {
     ElMessage.success('请假成功')
     leaveForm.range = []
     leaveForm.reason = ''
-    await loadPackages(loadSeq)
+    await loadPackages(loadRequest.current())
     await enterLeave(leaveInfo.value.userPackageId)
   } catch (e) {
     store.handleApiError(e)
@@ -424,7 +425,7 @@ function cancelLeave(pkg) {
       try {
         await studyLeaveApi.cancel(pkg.userLeaveId)
         ElMessage.success('已取消请假')
-        await loadPackages(loadSeq)
+        await loadPackages(loadRequest.current())
       } catch (e) {
         store.handleApiError(e)
       }
@@ -474,7 +475,7 @@ async function submitRepair() {
     })
     ElMessage.success('报修已提交')
     repairVisible.value = false
-    await loadRepairs(loadSeq)
+    await loadRepairs(loadRequest.current())
     activeTab.value = 'repairs'
   } catch (e) {
     store.handleApiError(e)

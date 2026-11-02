@@ -5,7 +5,9 @@
  * 页面/子组件只复用 .sr-* 类与 --sr-* 令牌，不要重复定义颜色与字体。
  */
 
-.studyroom-module {
+.studyroom-module,
+.sr-dialog,
+.sr-message-box {
   /* ---------- design tokens ---------- */
   --sr-paper: #f7f3e9;
   --sr-paper-2: #efe9db;
@@ -35,7 +37,9 @@
   --sr-shadow-lg: 0 24px 70px rgba(27, 42, 36, 0.28);
   --sr-font-display: 'Songti SC', 'STSong', 'SimSun', Georgia, serif;
   --sr-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+}
 
+.studyroom-module {
   /* Element Plus 主题映射，仅在本模块内生效 */
   --el-color-primary: #24513f;
   --el-color-primary-light-3: #4a7a63;

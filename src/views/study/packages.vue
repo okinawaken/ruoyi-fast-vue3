@@ -220,12 +220,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
 import { studyPackageApi } from '@/api/study'
 import useStudyStore from '@/store/modules/study'
 import { filterReserveVenues, formatMoney } from '@/utils/study/format'
+import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
 
 const store = useStudyStore()
 
@@ -436,15 +437,7 @@ async function copyPayParams() {
   }
 }
 
-watch(
-  () => store.isTokenValid,
-  valid => {
-    if (valid) {
-      loadPackages()
-    }
-  },
-  { immediate: true }
-)
+useStudyRefresh(() => loadPackages())
 
 onMounted(async () => {
   store.ensureStatus()

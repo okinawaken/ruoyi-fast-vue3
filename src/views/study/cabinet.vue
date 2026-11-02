@@ -171,20 +171,24 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
-import { studyMiscApi, studyUserApi, studyVenueApi } from '@/api/study'
+import { studyMiscApi, studyUserApi } from '@/api/study'
 import useStudyStore from '@/store/modules/study'
-import { filterReserveVenues, formatMoney } from '@/utils/study/format'
+import { formatMoney } from '@/utils/study/format'
+import { useLatestRequest } from '@/composables/study/useLatestRequest'
+import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
+import { useVenueOptions } from '@/composables/study/useVenueOptions'
 
 const store = useStudyStore()
 // 支付接口需要的小程序用户 ID，与后台登录用户 ID 不是同一套体系
 const miniUserId = ref(null)
 
-const venueList = ref([])
+const { venues: venueList, load: loadVenueOptions } = useVenueOptions()
 const venueId = ref(null)
 const loading = ref(false)
+const loadRequest = useLatestRequest()
 
 const myGrids = ref([])
 const myLoading = ref(false)
@@ -210,9 +214,7 @@ const payParamsText = computed(() => (payParams.value ? JSON.stringify(payParams
 
 async function loadVenues() {
   try {
-    const res = await studyVenueApi.reserveSelect()
-    // reserveSelect 会返回「押金专用」等非自习室门店，先过滤再选默认门店
-    venueList.value = filterReserveVenues(res?.data?.venueList)
+    await loadVenueOptions()
     if (!venueId.value && venueList.value.length) {
       venueId.value = venueList.value[0].id
     }
@@ -228,14 +230,14 @@ async function loadMyGrids(seq) {
   myLoading.value = true
   try {
     const res = await studyMiscApi.cabinetUserGridList(venueId.value)
-    if (seq !== loadSeq) {
+    if (!loadRequest.isLatest(seq)) {
       return
     }
     myGrids.value = res?.data?.list || []
   } catch (e) {
     store.handleApiError(e)
   } finally {
-    if (seq === loadSeq) {
+    if (loadRequest.isLatest(seq)) {
       myLoading.value = false
     }
   }
@@ -250,14 +252,14 @@ async function loadCabinets(seq) {
   grids.value = []
   try {
     const res = await studyMiscApi.cabinetVenueList(venueId.value)
-    if (seq !== loadSeq) {
+    if (!loadRequest.isLatest(seq)) {
       return
     }
     cabinets.value = res?.data?.list || []
   } catch (e) {
     store.handleApiError(e)
   } finally {
-    if (seq === loadSeq) {
+    if (loadRequest.isLatest(seq)) {
       cabinetLoading.value = false
     }
   }
@@ -267,29 +269,27 @@ async function loadOrders(seq) {
   orderLoading.value = true
   try {
     const res = await studyMiscApi.cabinetLeaseOrderList()
-    if (seq !== loadSeq) {
+    if (!loadRequest.isLatest(seq)) {
       return
     }
     leaseOrders.value = res?.data?.list || []
   } catch (e) {
     store.handleApiError(e)
   } finally {
-    if (seq === loadSeq) {
+    if (loadRequest.isLatest(seq)) {
       orderLoading.value = false
     }
   }
 }
 
-let loadSeq = 0
-
 async function loadAll() {
   if (!store.isTokenValid || !venueId.value) {
     return
   }
-  const seq = ++loadSeq
+  const seq = loadRequest.next()
   loading.value = true
   await Promise.allSettled([loadMyGrids(seq), loadCabinets(seq), loadOrders(seq)])
-  if (seq === loadSeq) {
+  if (loadRequest.isLatest(seq)) {
     loading.value = false
   }
 }
@@ -435,15 +435,7 @@ function checkoutLease(grid) {
     .catch(() => {})
 }
 
-watch(
-  () => [store.isTokenValid, store.refreshKey],
-  ([valid]) => {
-    if (valid) {
-      loadAll()
-    }
-  },
-  { immediate: true }
-)
+useStudyRefresh(() => loadAll())
 
 onMounted(async () => {
   store.ensureStatus()

@@ -153,7 +153,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
@@ -183,6 +183,8 @@ import {
   RESERVE_ANOTHER_FLAG,
   TIME_STEP_MINUTES
 } from '@/utils/study/constants'
+import { useLatestRequest } from '@/composables/study/useLatestRequest'
+import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
 
 const store = useStudyStore()
 const router = useRouter()
@@ -212,10 +214,9 @@ const confirmVisible = ref(false)
 const successVisible = ref(false)
 const confirmResult = ref(null)
 
-let pageSeq = 0
-let seatRequestSeq = 0
+const pageRequest = useLatestRequest()
+const seatRequest = useLatestRequest()
 let seatReloadTimer = null
-let lastInitKey = ''
 
 const ineligible = computed(() => !!checkInfo.value && Number(checkInfo.value.reserveState) === 1)
 
@@ -438,7 +439,7 @@ async function initialize() {
   if (!store.isTokenValid) {
     return
   }
-  const seq = ++pageSeq
+  const seq = pageRequest.next()
   initializing.value = true
   loadError.value = ''
   checkInfo.value = null
@@ -464,7 +465,7 @@ async function initialize() {
       studyVenueApi.reserveSelect(),
       store.fetchConfig()
     ])
-    if (seq !== pageSeq) {
+    if (!pageRequest.isLatest(seq)) {
       return
     }
     checkInfo.value = checkRes?.data || null
@@ -483,16 +484,15 @@ async function initialize() {
 
     await loadVenueContext(seq)
   } catch (e) {
-    if (seq !== pageSeq) {
+    if (!pageRequest.isLatest(seq)) {
       return
     }
-    if (store.handleApiError(e)) {
-      store.openBindModal()
+    if (store.handleApiError(e, { openBind: true })) {
       return
     }
     loadError.value = e?.msg || '预约信息加载失败，请稍后重试。'
   } finally {
-    if (seq === pageSeq) {
+    if (pageRequest.isLatest(seq)) {
       initializing.value = false
     }
   }
@@ -515,7 +515,7 @@ async function loadVenueContext(seq) {
       studyVenueApi.reserveDetail(venueId.value),
       studyReserveApi.dateSelect(venueId.value)
     ])
-    if (seq !== pageSeq) {
+    if (!pageRequest.isLatest(seq)) {
       return
     }
 
@@ -549,23 +549,22 @@ async function loadVenueContext(seq) {
     endTime.value = slot.endTime
 
     await loadSeatMap(seq)
-    if (seq === pageSeq) {
+    if (pageRequest.isLatest(seq)) {
       seatLoading.value = false
     }
   } catch (e) {
-    if (seq !== pageSeq) {
+    if (!pageRequest.isLatest(seq)) {
       return
     }
     seatLoading.value = false
-    if (store.handleApiError(e)) {
-      store.openBindModal()
+    if (store.handleApiError(e, { openBind: true })) {
       return
     }
     loadError.value = e?.msg || '门店或日期信息加载失败，请稍后重试。'
   }
 }
 
-async function loadSeatMap(seq = pageSeq) {
+async function loadSeatMap(seq = pageRequest.current()) {
   if (!store.isTokenValid || ineligible.value) {
     return
   }
@@ -573,7 +572,7 @@ async function loadSeatMap(seq = pageSeq) {
     return
   }
 
-  const requestSeq = ++seatRequestSeq
+  const requestSeq = seatRequest.next()
   seatLoading.value = true
   seatError.value = ''
 
@@ -585,24 +584,23 @@ async function loadSeatMap(seq = pageSeq) {
       reserveEndTimeStr: endTime.value,
       reserveAnotherFlag: RESERVE_ANOTHER_FLAG
     })
-    if (requestSeq !== seatRequestSeq || seq !== pageSeq) {
+    if (!seatRequest.isLatest(requestSeq) || !pageRequest.isLatest(seq)) {
       return
     }
     seatMap.value = res?.data || null
     updatedAt.value = nowText()
     validateSelectedSeat()
   } catch (e) {
-    if (requestSeq !== seatRequestSeq || seq !== pageSeq) {
+    if (!seatRequest.isLatest(requestSeq) || !pageRequest.isLatest(seq)) {
       return
     }
     seatMap.value = null
     seatError.value = e?.msg || '座位图加载失败，请稍后重试。'
-    if (store.handleApiError(e)) {
-      store.openBindModal()
+    if (store.handleApiError(e, { openBind: true })) {
       return
     }
   } finally {
-    if (requestSeq === seatRequestSeq && seq === pageSeq) {
+    if (seatRequest.isLatest(requestSeq) && pageRequest.isLatest(seq)) {
       seatLoading.value = false
     }
   }
@@ -637,7 +635,7 @@ async function onVenueChange(value) {
   if (Number(value) === Number(venueId.value)) {
     return
   }
-  const seq = ++pageSeq
+  const seq = pageRequest.next()
   clearSeatReloadTimer()
   venueId.value = value
   store.rememberVenue(value)
@@ -737,8 +735,7 @@ function scheduleSeatReload() {
 }
 
 function onSelectSeat(payload) {
-  if (!store.isTokenValid) {
-    store.openBindModal()
+  if (!store.requireToken()) {
     return
   }
   if (ineligible.value || !payload || !payload.seat) {
@@ -760,8 +757,7 @@ function clearSelection() {
 }
 
 function refreshSeats() {
-  if (!store.isTokenValid) {
-    store.openBindModal()
+  if (!store.requireToken()) {
     return
   }
   if (ineligible.value) {
@@ -784,8 +780,7 @@ function retryPage() {
 }
 
 async function submitReserve() {
-  if (!store.isTokenValid) {
-    store.openBindModal()
+  if (!store.requireToken()) {
     return
   }
   if (ineligible.value) {
@@ -815,9 +810,8 @@ async function doSubmitReserve() {
   if (submitting.value) {
     return
   }
-  if (!store.isTokenValid) {
+  if (!store.requireToken()) {
     confirmVisible.value = false
-    store.openBindModal()
     return
   }
   if (!selectedSeat.value || !venueId.value || !dateValue.value || !startTime.value || !endTime.value) {
@@ -850,8 +844,7 @@ async function doSubmitReserve() {
     successVisible.value = true
   } catch (e) {
     confirmVisible.value = false
-    if (store.handleApiError(e)) {
-      store.openBindModal()
+    if (store.handleApiError(e, { openBind: true })) {
       return
     }
     // 预约失败（如座位刚被占用）时刷新座位图，避免继续针对旧状态提交
@@ -871,30 +864,13 @@ function handleSuccessClose(gotoOverview) {
   }
 }
 
-watch(
-  () => [store.isTokenValid, store.refreshKey],
-  ([valid]) => {
-    if (!valid) {
-      lastInitKey = ''
-      return
-    }
-    const key = String(store.refreshKey)
-    if (key === lastInitKey) {
-      return
-    }
-    lastInitKey = key
-    initialize()
-  },
-  { immediate: true }
-)
+useStudyRefresh(() => initialize())
 
 onMounted(() => {
   store.ensureStatus()
 })
 
 onBeforeUnmount(() => {
-  pageSeq += 1
-  seatRequestSeq += 1
   clearSeatReloadTimer()
 })
 </script>

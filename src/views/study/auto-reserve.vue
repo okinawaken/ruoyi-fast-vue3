@@ -448,7 +448,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
@@ -457,7 +457,6 @@ import useStudyStore from '@/store/modules/study'
 import {
   buildTimeOptions,
   clockOf,
-  filterReserveVenues,
   formatDurationText,
   getSeatDisplayState,
   minutesToTime,
@@ -474,6 +473,9 @@ import {
   SEAT_STATE,
   TIME_STEP_MINUTES
 } from '@/utils/study/constants'
+import { useLatestRequest } from '@/composables/study/useLatestRequest'
+import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
+import { useVenueOptions } from '@/composables/study/useVenueOptions'
 
 const store = useStudyStore()
 const router = useRouter()
@@ -492,10 +494,9 @@ const releaseTime = ref('')
 const executingId = ref(null)
 const actionLoadingId = ref(null)
 
-let lastInitKey = ''
-let listSeq = 0
-let recordSeq = 0
-let venueSeq = 0
+const listRequest = useLatestRequest()
+const recordRequest = useLatestRequest()
+const venueRequest = useLatestRequest()
 
 /* ---------- 任务表单 ---------- */
 const formVisible = ref(false)
@@ -515,8 +516,7 @@ const form = reactive({
   seatAreaName: ''
 })
 
-const venueList = ref([])
-const venueLoading = ref(false)
+const { venues: venueList, loading: venueLoading, load: loadVenueOptions } = useVenueOptions()
 const venueDetail = ref(null)
 const venueDetailLoading = ref(false)
 const baseOpen = ref('00:00')
@@ -526,7 +526,7 @@ const areaLoading = ref(false)
 const areaError = ref('')
 const areaNote = ref('')
 let areaVenueId = null
-let areaSeq = 0
+const areaRequest = useLatestRequest()
 
 /* ---------- 座位选择 ---------- */
 const pickerVisible = ref(false)
@@ -754,14 +754,14 @@ async function loadTasks({ quiet = false } = {}) {
   if (!store.isTokenValid) {
     return
   }
-  const seq = ++listSeq
+  const seq = listRequest.next()
   if (!quiet) {
     loading.value = true
   }
   loadError.value = ''
   try {
     const res = await studyAutoReserveApi.taskList({ pageNum: pageNum.value, pageSize: pageSize.value })
-    if (seq !== listSeq) {
+    if (!listRequest.isLatest(seq)) {
       return
     }
     tasks.value = Array.isArray(res?.rows) ? res.rows : []
@@ -773,18 +773,17 @@ async function loadTasks({ quiet = false } = {}) {
       await loadTasks({ quiet })
     }
   } catch (e) {
-    if (seq !== listSeq) {
+    if (!listRequest.isLatest(seq)) {
       return
     }
-    if (store.handleApiError(e)) {
-      store.openBindModal()
+    if (store.handleApiError(e, { openBind: true })) {
       return
     }
     tasks.value = []
     total.value = 0
     loadError.value = e?.msg || '任务加载失败，请稍后重试。'
   } finally {
-    if (seq === listSeq) {
+    if (listRequest.isLatest(seq)) {
       loading.value = false
     }
   }
@@ -800,8 +799,7 @@ async function loadReleaseTime() {
 }
 
 function reloadAll() {
-  if (!store.isTokenValid) {
-    store.openBindModal()
+  if (!store.requireToken()) {
     return
   }
   loadTasks()
@@ -815,8 +813,7 @@ function onPageChange(page) {
 
 /* ---------- 任务操作 ---------- */
 async function executeTask(task) {
-  if (!store.isTokenValid) {
-    store.openBindModal()
+  if (!store.requireToken()) {
     return
   }
   if (!isEnabled(task)) {
@@ -842,17 +839,14 @@ async function executeTask(task) {
       loadRecords(recordPage.value)
     }
   } catch (e) {
-    if (store.handleApiError(e)) {
-      store.openBindModal()
-    }
+    store.handleApiError(e, { openBind: true })
   } finally {
     executingId.value = null
   }
 }
 
 async function toggleTask(task) {
-  if (!store.isTokenValid) {
-    store.openBindModal()
+  if (!store.requireToken()) {
     return
   }
   actionLoadingId.value = task.id
@@ -866,9 +860,7 @@ async function toggleTask(task) {
     }
     await loadTasks({ quiet: true })
   } catch (e) {
-    if (store.handleApiError(e)) {
-      store.openBindModal()
-    }
+    store.handleApiError(e, { openBind: true })
   } finally {
     actionLoadingId.value = null
   }
@@ -894,9 +886,7 @@ async function removeTask(task) {
     }
     await loadTasks()
   } catch (e) {
-    if (store.handleApiError(e)) {
-      store.openBindModal()
-    }
+    store.handleApiError(e, { openBind: true })
   }
 }
 
@@ -924,7 +914,7 @@ function resetForm() {
   })
   venueDetail.value = null
   venueDetailLoading.value = false
-  venueSeq += 1
+  venueRequest.invalidate()
   baseOpen.value = '00:00'
   baseClose.value = '23:59'
   clearAreaOptions()
@@ -934,15 +924,10 @@ async function ensureVenueOptions() {
   if (venueList.value.length || venueLoading.value) {
     return
   }
-  venueLoading.value = true
   try {
-    const res = await studyVenueApi.reserveSelect()
-    venueList.value = filterReserveVenues(res?.data?.venueList)
+    await loadVenueOptions()
   } catch (e) {
-    venueList.value = []
     store.handleApiError(e)
-  } finally {
-    venueLoading.value = false
   }
 }
 
@@ -960,7 +945,7 @@ async function ensureAreaOptions(venueId, { force = false } = {}) {
   if (!force && areaLoading.value && Number(areaVenueId) === Number(venueId)) {
     return
   }
-  const seq = ++areaSeq
+  const seq = areaRequest.next()
   areaVenueId = Number(venueId)
   areaLoading.value = true
   areaError.value = ''
@@ -968,7 +953,7 @@ async function ensureAreaOptions(venueId, { force = false } = {}) {
   areaList.value = []
   try {
     const dateRes = await studyReserveApi.dateSelect(venueId)
-    if (seq !== areaSeq) {
+    if (!areaRequest.isLatest(seq)) {
       return
     }
     const dates = (dateRes?.data?.reserveDateList || []).map(parseApiDate).filter(Boolean)
@@ -984,7 +969,7 @@ async function ensureAreaOptions(venueId, { force = false } = {}) {
       reserveEndTimeStr: form.endTime || baseClose.value,
       reserveAnotherFlag: 0
     })
-    if (seq !== areaSeq) {
+    if (!areaRequest.isLatest(seq)) {
       return
     }
     const areas = (res?.data?.venueAreaList || [])
@@ -1010,17 +995,16 @@ async function ensureAreaOptions(venueId, { force = false } = {}) {
     }
     areaList.value = areas
   } catch (e) {
-    if (seq !== areaSeq) {
+    if (!areaRequest.isLatest(seq)) {
       return
     }
-    if (store.handleApiError(e)) {
+    if (store.handleApiError(e, { openBind: true })) {
       areaError.value = e?.msg || '小程序 token 已失效，请重新绑定后再试。'
-      store.openBindModal()
       return
     }
     areaError.value = e?.msg || '区域读取失败，请稍后重试。'
   } finally {
-    if (seq === areaSeq) {
+    if (areaRequest.isLatest(seq)) {
       areaLoading.value = false
     }
   }
@@ -1031,7 +1015,7 @@ function retryAreas() {
 }
 
 function clearAreaOptions() {
-  areaSeq += 1
+  areaRequest.invalidate()
   areaVenueId = null
   areaList.value = []
   areaLoading.value = false
@@ -1065,11 +1049,11 @@ async function loadFormVenue(venueId, { keepTimes = false } = {}) {
   if (!venueId) {
     return
   }
-  const seq = ++venueSeq
+  const seq = venueRequest.next()
   venueDetailLoading.value = true
   try {
     const res = await studyVenueApi.reserveDetail(venueId)
-    if (seq !== venueSeq) {
+    if (!venueRequest.isLatest(seq)) {
       return
     }
     venueDetail.value = res?.data || null
@@ -1083,7 +1067,7 @@ async function loadFormVenue(venueId, { keepTimes = false } = {}) {
       clearSeatSelection()
     }
   } catch (e) {
-    if (seq !== venueSeq) {
+    if (!venueRequest.isLatest(seq)) {
       return
     }
     baseOpen.value = '00:00'
@@ -1093,19 +1077,16 @@ async function loadFormVenue(venueId, { keepTimes = false } = {}) {
       form.endTime = '17:00'
       clearSeatSelection()
     }
-    if (store.handleApiError(e)) {
-      store.openBindModal()
-    }
+    store.handleApiError(e, { openBind: true })
   } finally {
-    if (seq === venueSeq) {
+    if (venueRequest.isLatest(seq)) {
       venueDetailLoading.value = false
     }
   }
 }
 
 async function openCreate() {
-  if (!store.isTokenValid) {
-    store.openBindModal()
+  if (!store.requireToken()) {
     return
   }
   editingId.value = null
@@ -1223,8 +1204,7 @@ async function saveTask() {
   if (saving.value) {
     return
   }
-  if (!store.isTokenValid) {
-    store.openBindModal()
+  if (!store.requireToken()) {
     return
   }
 
@@ -1271,8 +1251,7 @@ async function saveTask() {
     await loadTasks()
     loadReleaseTime()
   } catch (e) {
-    if (store.handleApiError(e)) {
-      store.openBindModal()
+    if (store.handleApiError(e, { openBind: true })) {
       formVisible.value = false
     }
   } finally {
@@ -1336,9 +1315,8 @@ async function loadPickerSeats() {
       }))
       .filter(area => area.seats.length)
   } catch (e) {
-    if (store.handleApiError(e)) {
+    if (store.handleApiError(e, { openBind: true })) {
       pickerError.value = e?.msg || '小程序 token 已失效，请重新绑定后再试。'
-      store.openBindModal()
       return
     }
     pickerError.value = e?.msg || '座位图加载失败，请稍后重试。'
@@ -1394,7 +1372,7 @@ async function loadRecords(page = recordPage.value) {
   if (!recordsTask.value) {
     return
   }
-  const seq = ++recordSeq
+  const seq = recordRequest.next()
   const taskId = recordsTask.value.id
   recordLoading.value = true
   recordsError.value = ''
@@ -1403,26 +1381,25 @@ async function loadRecords(page = recordPage.value) {
       pageNum: page,
       pageSize: recordPageSize.value
     })
-    if (seq !== recordSeq) {
+    if (!recordRequest.isLatest(seq)) {
       return
     }
     records.value = Array.isArray(res?.rows) ? res.rows : []
     recordTotal.value = Number(res?.total) || 0
     recordPage.value = page
   } catch (e) {
-    if (seq !== recordSeq) {
+    if (!recordRequest.isLatest(seq)) {
       return
     }
-    if (store.handleApiError(e)) {
+    if (store.handleApiError(e, { openBind: true })) {
       recordsError.value = e?.msg || '小程序 token 已失效，请重新绑定后再试。'
-      store.openBindModal()
       return
     }
     records.value = []
     recordTotal.value = 0
     recordsError.value = e?.msg || '执行记录加载失败，请稍后重试。'
   } finally {
-    if (seq === recordSeq) {
+    if (recordRequest.isLatest(seq)) {
       recordLoading.value = false
     }
   }
@@ -1432,24 +1409,11 @@ function goSetting() {
   router.push(PAGE_PATH.AUTO_RESERVE_SETTING)
 }
 
-watch(
-  () => [store.isTokenValid, store.refreshKey],
-  ([valid]) => {
-    if (!valid) {
-      lastInitKey = ''
-      return
-    }
-    const key = String(store.refreshKey)
-    if (key === lastInitKey) {
-      return
-    }
-    lastInitKey = key
-    pageNum.value = 1
-    loadTasks()
-    loadReleaseTime()
-  },
-  { immediate: true }
-)
+useStudyRefresh(() => {
+  pageNum.value = 1
+  loadTasks()
+  loadReleaseTime()
+})
 
 onMounted(() => {
   store.ensureStatus()
@@ -1611,7 +1575,7 @@ onMounted(() => {
 /* ---------- dialog 内样式 ---------- */
 .ar-form-hint {
   margin: -10px 0 16px;
-  color: var(--ar-muted);
+  color: var(--sr-muted);
   font-size: 11px;
   line-height: 1.6;
 
@@ -1648,7 +1612,7 @@ onMounted(() => {
   width: 100%;
 
   :deep(.el-checkbox-button__inner) {
-    border: 1px solid var(--ar-line);
+    border: 1px solid var(--sr-line);
     border-radius: 7px;
     padding: 6px 11px;
     font-size: 12px;
@@ -1656,8 +1620,8 @@ onMounted(() => {
   }
 
   :deep(.el-checkbox-button.is-checked .el-checkbox-button__inner) {
-    border-color: var(--ar-green);
-    background: var(--ar-green);
+    border-color: var(--sr-green);
+    background: var(--sr-green);
     color: #fff;
   }
 }
@@ -1681,7 +1645,7 @@ onMounted(() => {
 .ar-picker-sub {
   flex: 1 1 320px;
   min-width: 0;
-  color: var(--ar-muted);
+  color: var(--sr-muted);
   font-size: 11.5px;
   line-height: 1.55;
 }
@@ -1710,7 +1674,7 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   margin: 0 0 8px;
-  color: var(--ar-ink-2);
+  color: var(--sr-ink-2);
   font-size: 12.5px;
   font-weight: 600;
 }
@@ -1723,9 +1687,9 @@ onMounted(() => {
   height: 20px;
   padding: 0 6px;
   border-radius: 999px;
-  background: var(--ar-green-soft);
-  color: var(--ar-green-ink);
-  font-family: var(--ar-font-mono);
+  background: var(--sr-green-soft);
+  color: var(--sr-green-ink);
+  font-family: var(--sr-font-mono);
   font-size: 10.5px;
   font-weight: 600;
   line-height: 1;
@@ -1741,34 +1705,34 @@ onMounted(() => {
   min-width: 44px;
   height: 32px;
   padding: 0 8px;
-  border: 1px solid var(--ar-green-line);
+  border: 1px solid var(--sr-green-line);
   border-radius: 7px;
-  background: var(--ar-green-soft);
-  color: var(--ar-green-ink);
-  font-family: var(--ar-font-mono);
+  background: var(--sr-green-soft);
+  color: var(--sr-green-ink);
+  font-family: var(--sr-font-mono);
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
   transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 
   &:hover {
-    border-color: var(--ar-green-2);
+    border-color: var(--sr-green-2);
   }
 
   &:focus-visible {
-    outline: 2px solid var(--ar-green-2);
+    outline: 2px solid var(--sr-green-2);
     outline-offset: 2px;
   }
 
   &.is-busy {
-    border-color: var(--ar-line);
-    background: var(--ar-card-2);
-    color: var(--ar-muted-2);
+    border-color: var(--sr-line);
+    background: var(--sr-card-2);
+    color: var(--sr-muted-2);
   }
 
   &.is-selected {
-    border-color: var(--ar-green);
-    background: var(--ar-green);
+    border-color: var(--sr-green);
+    background: var(--sr-green);
     color: #fff;
     font-weight: 600;
   }
@@ -1789,12 +1753,12 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 8px 12px;
   min-width: 0;
-  color: var(--ar-ink-2);
+  color: var(--sr-ink-2);
   font-size: 12px;
 }
 
 .ar-records-count {
-  color: var(--ar-muted);
+  color: var(--sr-muted);
   font-size: 11.5px;
 }
 
@@ -1813,18 +1777,18 @@ onMounted(() => {
 
 .ar-records-table {
   width: 100%;
-  --el-table-border-color: var(--ar-line);
-  --el-table-header-bg-color: var(--ar-card-2);
-  --el-table-row-hover-bg-color: var(--ar-paper-2);
-  --el-table-bg-color: var(--ar-card);
-  --el-table-tr-bg-color: var(--ar-card);
-  --el-table-text-color: var(--ar-ink-2);
-  --el-table-header-text-color: var(--ar-muted);
+  --el-table-border-color: var(--sr-line);
+  --el-table-header-bg-color: var(--sr-card-2);
+  --el-table-row-hover-bg-color: var(--sr-paper-2);
+  --el-table-bg-color: var(--sr-card);
+  --el-table-tr-bg-color: var(--sr-card);
+  --el-table-text-color: var(--sr-ink-2);
+  --el-table-header-text-color: var(--sr-muted);
   font-size: 12.5px;
 }
 
 .ar-mono {
-  font-family: var(--ar-font-mono);
+  font-family: var(--sr-font-mono);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1862,28 +1826,5 @@ onMounted(() => {
   .ar-picker-toolbar :deep(.el-input) {
     width: 100% !important;
   }
-}
-</style>
-
-<style lang="scss">
-/* 弹窗通过 Teleport 渲染到 body，设计令牌声明在非 scoped 块中保证可继承 */
-.ar-form-dialog,
-.ar-picker-dialog,
-.ar-records-dialog {
-  --ar-line: #e4dcc9;
-  --ar-ink: #1b2a24;
-  --ar-ink-2: #2a3a32;
-  --ar-muted: #5f6c64;
-  --ar-muted-2: #75827a;
-  --ar-card: #fffdf8;
-  --ar-card-2: #fbf8ef;
-  --ar-paper-2: #efe9db;
-  --ar-green: #24513f;
-  --ar-green-2: #2f6b55;
-  --ar-green-soft: #e4ede6;
-  --ar-green-line: #bfd3c5;
-  --ar-green-ink: #315a47;
-  --ar-font-display: 'Songti SC', 'STSong', 'SimSun', Georgia, serif;
-  --ar-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
 }
 </style>

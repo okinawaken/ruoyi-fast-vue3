@@ -109,7 +109,7 @@ import SeatMap from './seat-map.vue'
 import { studySignApi, studyVenueApi } from '@/api/study'
 import useStudyStore from '@/store/modules/study'
 import { DEFAULT_VENUE_QR_CODE } from '@/utils/study/constants'
-import { clockOf, filterReserveVenues, getCurrentLocation } from '@/utils/study/format'
+import { clockOf, filterReserveVenues, getCurrentLocationCoords } from '@/utils/study/format'
 
 const props = defineProps({
   signData: { type: Object, default: null },
@@ -252,9 +252,7 @@ function resolveSignOutVenueId() {
  * 此时按在座页的做法拉取门店列表，用首个可签到门店定位结算套餐。
  */
 async function fetchFallbackVenueId() {
-  const location = await getCurrentLocation()
-  const lng = location?.lng ?? 0
-  const lat = location?.lat ?? 0
+  const { lng, lat } = await getCurrentLocationCoords()
   const loadList = async request => {
     try {
       const res = await request()
@@ -374,12 +372,12 @@ async function confirmSignOut() {
   signingOut.value = true
   try {
     // 与小程序一致：扫码门店传二维码，普通门店 qrCode 传空串，统一走 /sign/out
-    const location = await getCurrentLocation()
+    const { lng, lat } = await getCurrentLocationCoords()
     const fallback = venueLocation()
     const res = await studySignApi.signOut({
       qrCode: qrNeedSignOut.value ? signOutQr.value.trim() : '',
-      currentLng: location?.lng ?? fallback.lng,
-      currentLat: location?.lat ?? fallback.lat,
+      currentLng: lng || fallback.lng,
+      currentLat: lat || fallback.lat,
       settleUserPackageId: settlePackageId.value,
       userSignId: props.userSignId
     })

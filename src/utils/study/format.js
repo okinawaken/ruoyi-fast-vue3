@@ -243,7 +243,7 @@ export function buildTimeOptions(open, close, step = TIME_STEP_MINUTES) {
 /**
  * 座位在指定时段内是否可预约
  */
-export function isSeatSelectable(seat, startTime, endTime) {
+function isSeatSelectable(seat, startTime, endTime) {
   if (!seat || typeof seat !== 'object') {
     return false
   }
@@ -302,7 +302,7 @@ export function getSeatDisplayState(seat, startTime, endTime) {
  * reserveDateStr 为 yyyy-MM-dd，reserveTimeStr 为 HH:mm-HH:mm
  * @returns {Date|null}
  */
-export function parseReserveEndTime(reserve) {
+function parseReserveEndTime(reserve) {
   if (!reserve || typeof reserve !== 'object') {
     return null
   }
@@ -569,6 +569,14 @@ export function clockOf(value) {
   return `${pad2(hour)}:${match[2]}`
 }
 
+/**
+ * 当前时间 HH:mm，用于「更新于」等页面文案
+ */
+export function currentClockText(now = new Date()) {
+  const date = now instanceof Date ? now : new Date(now)
+  return minutesToTime(date.getHours() * 60 + date.getMinutes()) || '--:--'
+}
+
 // 定位结果缓存 5 分钟，避免每次刷新重复授权
 const LOCATION_TTL = 5 * 60 * 1000
 let locationCache = null
@@ -618,4 +626,16 @@ export function getCurrentLocation(options = {}) {
     }
   })
   return pending
+}
+
+/**
+ * 获取定位并补齐默认坐标，调用方无需再判断 null
+ * @returns {Promise<{ lng: number, lat: number }>}
+ */
+export async function getCurrentLocationCoords(options = {}) {
+  const location = await getCurrentLocation(options)
+  return {
+    lng: location ? location.lng : 0,
+    lat: location ? location.lat : 0
+  }
 }

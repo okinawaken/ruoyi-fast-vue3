@@ -258,8 +258,9 @@ import SeatActions from './components/seat-actions.vue'
 import { studyGuardApi, studyPackageApi, studySignApi, studyUserApi, studyVenueApi } from '@/api/study'
 import useStudyStore from '@/store/modules/study'
 import { DEFAULT_VENUE_QR_CODE } from '@/utils/study/constants'
-import { clockOf, filterReserveVenues, getCurrentLocation, isHiddenVenue } from '@/utils/study/format'
+import { clockOf, currentClockText, filterReserveVenues, getCurrentLocationCoords, isHiddenVenue } from '@/utils/study/format'
 import { isWebBluetoothSupported, openLockByBle, requestLockDevice } from '@/utils/study/ttlock-ble'
+import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
 
 const store = useStudyStore()
 
@@ -356,11 +357,6 @@ const selectedVenueName = computed(() => {
 
 const selectedVenue = computed(() => venueOptions.value.find(item => Number(item.id) === Number(signForm.venueId)))
 
-function nowTimeText() {
-  const now = new Date()
-  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-}
-
 function venueLocation() {
   const nearestList = Array.isArray(signData.value?.venueNearestList) ? signData.value.venueNearestList : []
   const matched = nearestList.find(item => Number(item.id) === Number(signForm.venueId))
@@ -390,9 +386,7 @@ async function loadVenueCoords() {
 }
 
 async function loadVenues() {
-  const location = await getCurrentLocation()
-  const lng = location ? location.lng : 0
-  const lat = location ? location.lat : 0
+  const { lng, lat } = await getCurrentLocationCoords()
   try {
     // 预约首页返回完整门店信息（地址、距离、经纬度），比 venue/select 的简要信息更适合附近门店展示
     const res = await studyVenueApi.reserveIndex({ currentLng: lng, currentLat: lat })
@@ -435,11 +429,11 @@ async function loadIndex() {
   indexLoading.value = true
   indexError.value = ''
   try {
-    const location = await getCurrentLocation()
+    const { lng, lat } = await getCurrentLocationCoords()
     const [res, userRes] = await Promise.all([
       studySignApi.index({
-        currentLng: location ? location.lng : 0,
-        currentLat: location ? location.lat : 0,
+        currentLng: lng,
+        currentLat: lat,
         venueId: signForm.venueId || undefined
       }),
       studyUserApi.index().catch(error => {
@@ -449,7 +443,7 @@ async function loadIndex() {
     ])
     signData.value = res?.data || null
     userOverview.value = userRes?.data || null
-    updatedAt.value = nowTimeText()
+    updatedAt.value = currentClockText()
 
     const nearest = filterReserveVenues(signData.value?.venueNearestList)
     if (nearest.length && !venueOptions.value.length) {
@@ -641,16 +635,10 @@ watch(
 
 watch(guardVenueId, () => loadGuardList(), { immediate: true })
 
-watch(
-  () => [store.isTokenValid, store.refreshKey],
-  ([valid]) => {
-    if (valid) {
-      loadIndex()
-      loadGuardList()
-    }
-  },
-  { immediate: true }
-)
+useStudyRefresh(() => {
+  loadIndex()
+  loadGuardList()
+})
 
 onMounted(async () => {
   store.ensureStatus()

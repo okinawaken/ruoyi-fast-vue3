@@ -146,12 +146,17 @@ const useStudyStore = defineStore('study', {
     },
 
     /**
-     * 统一处理接口错误；token 失效时标记状态
+     * 统一处理接口错误；token 失效时标记状态，并按需打开重新绑定弹窗
+     * @param {Error} error
+     * @param {{ openBind?: boolean }} options
      * @returns {boolean} 是否属于 token 失效
      */
-    handleApiError(error) {
+    handleApiError(error, { openBind = false } = {}) {
       if (isTokenInvalidError(error)) {
         this.markTokenExpired()
+        if (openBind) {
+          this.openBindModal()
+        }
         return true
       }
       return false
@@ -159,6 +164,18 @@ const useStudyStore = defineStore('study', {
 
     openBindModal() {
       this.bindModalVisible = true
+    },
+
+    /**
+     * 校验 token 是否有效；无效时打开重新绑定弹窗
+     * @returns {boolean} token 是否有效
+     */
+    requireToken() {
+      if (this.isTokenValid) {
+        return true
+      }
+      this.openBindModal()
+      return false
     },
 
     closeBindModal() {

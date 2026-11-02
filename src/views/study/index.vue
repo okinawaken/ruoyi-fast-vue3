@@ -78,8 +78,9 @@ import ReservationList from './components/reservation-list.vue'
 import SignRecordList from './components/sign-record-list.vue'
 import { studyConfigApi, studyReserveApi, studySignApi, studyUserApi } from '@/api/study'
 import useStudyStore from '@/store/modules/study'
-import { getCurrentLocation, isEndedReserve, parseApiDate } from '@/utils/study/format'
+import { currentClockText, getCurrentLocationCoords, isEndedReserve, parseApiDate } from '@/utils/study/format'
 import { PAGE_PATH } from '@/utils/study/constants'
+import { useLatestRequest } from '@/composables/study/useLatestRequest'
 
 const store = useStudyStore()
 const router = useRouter()
@@ -103,7 +104,7 @@ const signLoading = ref(false)
 const signLoadingMore = ref(false)
 const tabsBusy = ref(false)
 
-let loadSeq = 0
+const loadRequest = useLatestRequest()
 
 const refreshing = computed(
   () => userLoading.value || profileLoading.value || seatLoading.value || reserveLoading.value || signLoading.value || tabsBusy.value
@@ -125,13 +126,8 @@ const reserveNote = computed(() => {
   return tail ? `最近一笔：${tail}` : '暂无进行中的预约'
 })
 
-function nowTimeText() {
-  const now = new Date()
-  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-}
-
 function canApply(seq) {
-  return seq === loadSeq && store.isTokenValid
+  return loadRequest.isLatest(seq) && store.isTokenValid
 }
 
 function setAllLoading(value) {
@@ -143,7 +139,7 @@ function setAllLoading(value) {
 }
 
 function clearLocalData() {
-  loadSeq += 1
+  loadRequest.invalidate()
   user.value = null
   detail.value = null
   fee.value = null
@@ -158,7 +154,7 @@ function clearLocalData() {
 }
 
 function stopLoadingAndKeepData() {
-  loadSeq += 1
+  loadRequest.invalidate()
   signLoadingMore.value = false
   setAllLoading(false)
 }
@@ -191,7 +187,7 @@ async function loadUser(seq) {
   } catch (e) {
     store.handleApiError(e)
   } finally {
-    if (seq === loadSeq) {
+    if (loadRequest.isLatest(seq)) {
       userLoading.value = false
     }
   }
@@ -209,7 +205,7 @@ async function loadProfile(seq) {
   } catch (e) {
     store.handleApiError(e)
   } finally {
-    if (seq === loadSeq) {
+    if (loadRequest.isLatest(seq)) {
       profileLoading.value = false
     }
   }
@@ -226,7 +222,7 @@ async function loadReserves(seq) {
   } catch (e) {
     store.handleApiError(e)
   } finally {
-    if (seq === loadSeq) {
+    if (loadRequest.isLatest(seq)) {
       reserveLoading.value = false
     }
   }
@@ -235,13 +231,13 @@ async function loadReserves(seq) {
 async function loadSeat(seq) {
   seatLoading.value = true
   try {
-    const location = await getCurrentLocation()
+    const { lng, lat } = await getCurrentLocationCoords()
     if (!canApply(seq)) {
       return
     }
     const res = await studySignApi.index({
-      currentLng: location ? location.lng : 0,
-      currentLat: location ? location.lat : 0
+      currentLng: lng,
+      currentLat: lat
     })
     if (!canApply(seq)) {
       return
@@ -250,7 +246,7 @@ async function loadSeat(seq) {
   } catch (e) {
     store.handleApiError(e)
   } finally {
-    if (seq === loadSeq) {
+    if (loadRequest.isLatest(seq)) {
       seatLoading.value = false
     }
   }
@@ -269,7 +265,7 @@ async function loadSignRecords(seq) {
   } catch (e) {
     store.handleApiError(e)
   } finally {
-    if (seq === loadSeq) {
+    if (loadRequest.isLatest(seq)) {
       signLoading.value = false
     }
   }
@@ -294,7 +290,7 @@ async function loadAll() {
     return
   }
 
-  const seq = ++loadSeq
+  const seq = loadRequest.next()
   await Promise.allSettled([
     loadUser(seq),
     loadProfile(seq),
@@ -304,8 +300,8 @@ async function loadAll() {
     loadNotice()
   ])
 
-  if (seq === loadSeq && store.isTokenValid) {
-    updatedAt.value = nowTimeText()
+  if (loadRequest.isLatest(seq) && store.isTokenValid) {
+    updatedAt.value = currentClockText()
   }
 }
 
@@ -318,11 +314,11 @@ async function loadMoreSign() {
   if (signLoadingMore.value || signLoading.value || !signHasMore.value || !store.isTokenValid) {
     return
   }
-  const seq = loadSeq
+  const seq = loadRequest.current()
   signLoadingMore.value = true
   try {
     const res = await studyUserApi.signListMore()
-    if (seq !== loadSeq || !store.isTokenValid) {
+    if (!loadRequest.isLatest(seq) || !store.isTokenValid) {
       return
     }
     const list = Array.isArray(res?.data?.list) ? res.data.list : []
@@ -374,7 +370,7 @@ async function handleCancelReserve(record) {
       try {
         await studyReserveApi.cancel(record.id)
         ElMessage.success('预约已取消')
-        await loadReserves(loadSeq)
+        await loadReserves(loadRequest.current())
       } catch (e) {
         store.handleApiError(e)
       }

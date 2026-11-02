@@ -121,12 +121,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
 import { studyMiscApi, studyVenueApi } from '@/api/study'
 import useStudyStore from '@/store/modules/study'
-import { getCurrentLocation } from '@/utils/study/format'
+import { getCurrentLocationCoords } from '@/utils/study/format'
+import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
 
 const store = useStudyStore()
 
@@ -147,9 +148,7 @@ async function loadVenues() {
   venueLoading.value = true
   venueList.value = []
   try {
-    const location = await getCurrentLocation()
-    const lng = location ? location.lng : 0
-    const lat = location ? location.lat : 0
+    const { lng, lat } = await getCurrentLocationCoords()
     const res =
       channel.value === 'douyin'
         ? await studyVenueApi.douyinSelect(lng, lat)
@@ -227,21 +226,14 @@ function resetForm() {
   result.value = null
 }
 
-watch(
-  () => store.isTokenValid,
-  async valid => {
-    if (!valid) {
-      return
-    }
-    // 等配置就绪后再决定渠道，避免先用默认渠道请求一次
-    await store.fetchConfig()
-    if (!meituanEnabled.value && douyinEnabled.value) {
-      channel.value = 'douyin'
-    }
-    loadVenues()
-  },
-  { immediate: true }
-)
+useStudyRefresh(async () => {
+  // 等配置就绪后再决定渠道，避免先用默认渠道请求一次
+  await store.fetchConfig()
+  if (!meituanEnabled.value && douyinEnabled.value) {
+    channel.value = 'douyin'
+  }
+  loadVenues()
+})
 
 onMounted(() => {
   store.ensureStatus()

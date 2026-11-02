@@ -140,7 +140,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
@@ -148,6 +148,7 @@ import { studyAutoReserveApi } from '@/api/study'
 import useStudyStore from '@/store/modules/study'
 import { clockOf } from '@/utils/study/format'
 import { PAGE_PATH } from '@/utils/study/constants'
+import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
 
 const store = useStudyStore()
 const router = useRouter()
@@ -160,8 +161,6 @@ const loadError = ref('')
 const releaseTime = ref('')
 const savedReleaseTime = ref('')
 const saving = ref(false)
-
-let lastInitKey = ''
 
 const dirty = computed(() => !!releaseTime.value && releaseTime.value !== savedReleaseTime.value)
 
@@ -211,10 +210,9 @@ async function loadSetting() {
     savedReleaseTime.value = value
     loaded.value = true
   } catch (e) {
-    if (store.handleApiError(e)) {
+    if (store.handleApiError(e, { openBind: true })) {
       loadError.value = e?.msg || '小程序 token 已失效，请重新绑定后再试。'
       loaded.value = false
-      store.openBindModal()
       return
     }
     loadError.value = e?.msg || '配置读取失败，请稍后重试。'
@@ -260,9 +258,7 @@ async function saveSetting() {
     loaded.value = true
     ElMessage.success('放号时刻已保存')
   } catch (e) {
-    if (store.handleApiError(e)) {
-      store.openBindModal()
-    }
+    store.handleApiError(e, { openBind: true })
   } finally {
     saving.value = false
   }
@@ -272,22 +268,13 @@ function goTasks() {
   router.push(PAGE_PATH.AUTO_RESERVE)
 }
 
-watch(
-  () => [store.isTokenValid, store.refreshKey],
-  ([valid]) => {
-    if (!valid) {
-      lastInitKey = ''
+useStudyRefresh(
+  () => loadSetting(),
+  {
+    onInvalid: () => {
       loaded.value = false
-      return
     }
-    const key = String(store.refreshKey)
-    if (key === lastInitKey) {
-      return
-    }
-    lastInitKey = key
-    loadSetting()
-  },
-  { immediate: true }
+  }
 )
 
 onMounted(() => {
