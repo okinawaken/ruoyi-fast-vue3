@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { studyConfigApi, studyTokenApi } from '@/api/study/token'
+import { studyConfigApi } from '@/api/study/config'
+import { studyTokenApi } from '@/api/study/token'
 import { isTokenInvalidError, toBool } from '@/utils/study/value'
 import { readLastSlot, readLastVenueId, writeLastSlot, writeLastVenueId } from '@/utils/study/storage'
 

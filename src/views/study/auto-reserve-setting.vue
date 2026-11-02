@@ -5,7 +5,7 @@
         <div>
           <p class="sr-eyebrow">自习室 · 自动预约</p>
           <h1 class="sr-title">自动预约配置</h1>
-          <p class="sr-sub">设定每天的放号时刻；启用中的任务会在该时刻自动尝试抢座。</p>
+          <p class="sr-sub">设定每天的放号时刻与自动签到开关；启用中的任务会在该时刻自动尝试抢座。</p>
         </div>
         <div class="sr-actions">
           <el-button @click="goTasks">
@@ -18,7 +18,7 @@
       <div class="sr-grid-2 as-grid">
         <section class="sr-card">
           <div class="sr-card-head">
-            <h2 class="sr-card-title">放号时刻</h2>
+            <h2 class="sr-card-title">放号与签到</h2>
             <span class="sr-chip" :class="stateChipClass">
               <span class="sr-dot"></span>{{ stateText }}
             </span>
@@ -44,6 +44,20 @@
                   @change="onReleaseTimeChange"
                 />
               </el-form-item>
+
+              <el-form-item label="自动签到">
+                <div class="as-switch-row">
+                  <el-switch
+                    v-model="signInEnable"
+                    :active-value="1"
+                    :inactive-value="0"
+                    :disabled="!store.isTokenValid"
+                  />
+                  <span class="as-switch-hint">
+                    {{ signInEnable === 1 ? '已开启：预约到点自动签到入座' : '已关闭：需要在签到页手动签到' }}
+                  </span>
+                </div>
+              </el-form-item>
             </el-form>
 
             <div class="as-presets">
@@ -62,6 +76,7 @@
 
             <p class="as-hint">
               可直接输入 HH:mm，也可使用下拉选择。调度器每分钟扫描一次，按分钟匹配该时刻，秒数不参与判断。
+              自动签到开启后，会在预约时段开始时自动签到入座；关闭则需在小程序手动签到。
             </p>
 
             <div class="sr-divider"></div>
@@ -78,6 +93,7 @@
 
             <p class="as-saved">
               当前生效：<span class="sr-mono">{{ savedReleaseTime || '—' }}</span>
+              · 自动签到{{ savedSignInEnable === 1 ? '已开启' : '已关闭' }}
             </p>
           </div>
         </section>
@@ -123,9 +139,10 @@
             <div class="sr-divider"></div>
 
             <ul class="as-notes">
-              <li>放号时刻按用户维度保存，只影响你自己的任务。</li>
+              <li>放号时刻与自动签到开关按用户维度保存，只影响你自己的任务。</li>
+              <li>自动签到开启后只对已绑定小程序 token 的用户生效；关闭后需在签到页手动签到。</li>
               <li>小程序 token 失效时任务会自动暂停；重新绑定后需在任务页手动恢复。</li>
-              <li>保存会整体覆盖当前配置，撤销可恢复为上次保存的时刻。</li>
+              <li>保存会整体覆盖当前配置，撤销可恢复为上次保存的时刻和开关状态。</li>
             </ul>
 
             <el-button class="as-goto" @click="goTasks">
@@ -160,9 +177,15 @@ const loaded = ref(false)
 const loadError = ref('')
 const releaseTime = ref('')
 const savedReleaseTime = ref('')
+const signInEnable = ref(0)
+const savedSignInEnable = ref(0)
 const saving = ref(false)
 
-const dirty = computed(() => !!releaseTime.value && releaseTime.value !== savedReleaseTime.value)
+const dirty = computed(
+  () =>
+    (!!releaseTime.value && releaseTime.value !== savedReleaseTime.value) ||
+    signInEnable.value !== savedSignInEnable.value
+)
 
 const canSave = computed(
   () => store.isTokenValid && loaded.value && !loading.value && !loadError.value && !!releaseTime.value && dirty.value
@@ -206,8 +229,11 @@ async function loadSetting() {
   try {
     const res = await studyAutoReserveApi.setting()
     const value = clockOf(res?.data?.releaseTime) || '20:00'
+    const enable = Number(res?.data?.signInEnable) === 1 ? 1 : 0
     releaseTime.value = value
     savedReleaseTime.value = value
+    signInEnable.value = enable
+    savedSignInEnable.value = enable
     loaded.value = true
   } catch (e) {
     if (store.handleApiError(e, { openBind: true })) {
@@ -238,6 +264,7 @@ function onReleaseTimeChange(value) {
 
 function resetSetting() {
   releaseTime.value = savedReleaseTime.value
+  signInEnable.value = savedSignInEnable.value
 }
 
 async function saveSetting() {
@@ -252,11 +279,12 @@ async function saveSetting() {
 
   saving.value = true
   try {
-    await studyAutoReserveApi.updateSetting({ releaseTime: value })
+    await studyAutoReserveApi.updateSetting({ releaseTime: value, signInEnable: signInEnable.value })
     releaseTime.value = value
     savedReleaseTime.value = value
+    savedSignInEnable.value = signInEnable.value
     loaded.value = true
-    ElMessage.success('放号时刻已保存')
+    ElMessage.success('配置已保存')
   } catch (e) {
     store.handleApiError(e, { openBind: true })
   } finally {
@@ -326,6 +354,19 @@ onMounted(() => {
   .el-button + .el-button {
     margin-left: 0;
   }
+}
+
+.as-switch-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+
+.as-switch-hint {
+  color: var(--sr-muted);
+  font-size: 11.5px;
+  line-height: 1.6;
 }
 
 .as-hint {

@@ -35,6 +35,10 @@
               <span class="sr-count">{{ seatedList.length }}</span>
             </h2>
             <span v-if="signData?.configStudyIndexText" class="sr-card-sub">{{ signData.configStudyIndexText }}</span>
+            <el-button v-if="canControlLight" class="light-entry" :loading="lightBusy" @click="openLightControl">
+              <el-icon><Sunny /></el-icon>
+              {{ lightButtonText }}
+            </el-button>
           </div>
 
           <div v-if="seatedList.length" class="seated-list">
@@ -85,7 +89,7 @@
           :venue-options="venueOptions"
           :venue-name="selectedVenueName"
           :packages="userPackages"
-          :preset-package-id="signData?.signInUserPackage?.id"
+          :preset-package-id="presetSignInPackageId"
           :qr-need-sign-in="qrNeedSignIn"
           :description="signData?.descNoSignIn"
           :coords="actionCoords"
@@ -141,23 +145,53 @@
           </section>
         </div>
       </template>
+
+      <!-- 座位灯控 -->
+      <el-dialog
+        v-model="lightVisible"
+        class="sr-dialog"
+        title="座位灯控"
+        width="380px"
+        append-to-body
+      >
+        <div class="light-body">
+          <p class="light-seat">
+            当前座位
+            <strong class="sr-mono">{{ seatCurrent?.seatNumber || '—' }}</strong>
+          </p>
+          <p class="light-tip">指令发出后约 2 秒生效，请以现场灯况为准。</p>
+          <div class="light-actions">
+            <el-button type="primary" :loading="lightAction === 'turnOn'" :disabled="lightBusy" @click="turnLight('turnOn')">
+              <el-icon><Sunny /></el-icon>
+              开灯
+            </el-button>
+            <el-button :loading="lightAction === 'turnOff'" :disabled="lightBusy" @click="turnLight('turnOff')">
+              <el-icon><Moon /></el-icon>
+              关灯
+            </el-button>
+          </div>
+        </div>
+      </el-dialog>
     </div>
   </StudyShell>
 </template>
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
 import SeatActions from './components/seat-actions.vue'
 import GuardSection from './components/sign/guard-section.vue'
 import SignInForm from './components/sign/sign-in-form.vue'
 import { studyPackageApi } from '@/api/study/package'
+import { studyReserveApi } from '@/api/study/reserve'
 import { studySignApi } from '@/api/study/sign'
 import { studyUserApi } from '@/api/study/user'
 import { studyVenueApi } from '@/api/study/venue'
 import useStudyStore from '@/store/modules/study'
-import { clockOf, currentClockText } from '@/utils/study/time'
+import { clockOf, currentClockText, parseApiDate } from '@/utils/study/time'
 import { filterReserveVenues, isHiddenVenue } from '@/utils/study/venue'
+import { isEndedReserve } from '@/utils/study/reserve'
 import { getCurrentLocationCoords } from '@/utils/study/location'
 import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
 
@@ -175,6 +209,54 @@ const signVenueId = ref(null)
 const venueCoords = ref(null)
 
 const seatedList = computed(() => (Array.isArray(signData.value?.userSignInfoList) ? signData.value.userSignInfoList : []))
+
+/* ---------------- 座位灯控 ---------------- */
+const lightVisible = ref(false)
+const lightAction = ref('')
+const lightBusy = computed(() => lightAction.value !== '')
+const seatCurrent = computed(() => signData.value?.seatCurrent || null)
+const lightButtonText = computed(() => signData.value?.buttonTextOfLight || '灯控开关')
+
+/**
+ * 沿用小程序的条件：座位存在且门店开启了灯控。
+ * lightBindStatus 显式为 0 表示该座位未绑定灯控；字段缺失时按小程序语义不拦截。
+ */
+const canControlLight = computed(() => {
+  const seat = seatCurrent.value
+  if (!seat?.id) {
+    return false
+  }
+  const online = signData.value?.lightOnline
+  if (!(online === true || String(online) === 'true')) {
+    return false
+  }
+  const bind = seat.lightBindStatus
+  return bind === null || bind === undefined || Number(bind) !== 0
+})
+
+function openLightControl() {
+  if (!canControlLight.value) {
+    ElMessage.warning('当前座位暂不支持灯控')
+    return
+  }
+  lightVisible.value = true
+}
+
+async function turnLight(turnFlag) {
+  if (!seatCurrent.value?.id || lightBusy.value) {
+    return
+  }
+  lightAction.value = turnFlag
+  try {
+    await studySignApi.espLightTurn({ seatId: seatCurrent.value.id, turnFlag })
+    ElMessage.success(turnFlag === 'turnOn' ? '已发送开灯指令' : '已发送关灯指令')
+    lightVisible.value = false
+  } catch (e) {
+    store.handleApiError(e)
+  } finally {
+    lightAction.value = ''
+  }
+}
 
 /**
  * 门禁跟随当前在座门店；未在座时跟随签到表单里选中的门店。
@@ -224,6 +306,15 @@ const studyTotalText = computed(() => userOverview.value?.studyTotalTimeStr || '
 
 const qrNeedSignIn = computed(() => String(signData.value?.qrCodeNeedSignIn || '') === 'true')
 
+/**
+ * 签到扣费套餐 ID。
+ * 小程序取签到首页 signInUserPackage.signInUserPackageId，老字段 id 作为兜底。
+ */
+const presetSignInPackageId = computed(() => {
+  const preset = signData.value?.signInUserPackage
+  return preset?.signInUserPackageId ?? preset?.id ?? null
+})
+
 const selectedVenueName = computed(() => {
   const venue = venueOptions.value.find(item => Number(item.id) === Number(signVenueId.value))
   if (venue) {
@@ -263,6 +354,48 @@ async function loadVenueCoords() {
   }
 }
 
+/* ---------------- 预约签到 ---------------- */
+const pendingReserve = ref(null)
+let pendingReserveChecked = false
+
+/**
+ * 今天的「待签到」预约。
+ * 上游在签到选座接口里会直接用预约座位完成签到，所以签到门店与套餐都必须跟随这笔预约。
+ */
+async function resolvePendingReserve() {
+  if (pendingReserveChecked) {
+    return pendingReserve.value
+  }
+  pendingReserveChecked = true
+  try {
+    const res = await studyReserveApi.userList()
+    const list = Array.isArray(res?.data?.list) ? res.data.list : []
+    pendingReserve.value =
+      list.find(
+        item =>
+          String(item?.reserveStatusDesc || '').trim() === '待签到' &&
+          parseApiDate(item?.reserveDateStr)?.isToday &&
+          !isEndedReserve(item)
+      ) || null
+  } catch (e) {
+    pendingReserve.value = null
+  }
+  return pendingReserve.value
+}
+
+/**
+ * 预约门店可能不在附近门店列表里，补一条最小门店信息，保证下拉框能显示名称。
+ */
+function ensureVenueOption(venueId, venueName) {
+  if (venueId === null || venueId === undefined || venueId === '') {
+    return
+  }
+  if (venueOptions.value.some(item => Number(item.id) === Number(venueId))) {
+    return
+  }
+  venueOptions.value = [...venueOptions.value, { id: venueId, venueName: venueName || `门店 ${venueId}` }]
+}
+
 async function loadVenues() {
   const { lng, lat } = await getCurrentLocationCoords()
   try {
@@ -283,6 +416,12 @@ async function loadVenues() {
   if (!venueOptions.value.length && Array.isArray(signData.value?.venueNearestList)) {
     venueOptions.value = filterReserveVenues(signData.value.venueNearestList)
   }
+  // 门店列表可能覆盖掉已选中的预约门店，补回来避免下拉框显示成门店 ID
+  if (signVenueId.value) {
+    const pendingName =
+      Number(pendingReserve.value?.venueId) === Number(signVenueId.value) ? pendingReserve.value?.venueName : ''
+    ensureVenueOption(signVenueId.value, pendingName)
+  }
 }
 
 async function loadPackages() {
@@ -301,6 +440,14 @@ async function loadIndex() {
   indexLoading.value = true
   indexError.value = ''
   try {
+    // 有当天待签到预约时先锁定预约门店，签到首页才会返回对应门店的扣费套餐
+    if (!signVenueId.value) {
+      const reserve = await resolvePendingReserve()
+      if (reserve) {
+        ensureVenueOption(reserve.venueId, reserve.venueName)
+        signVenueId.value = reserve.venueId
+      }
+    }
     const { lng, lat } = await getCurrentLocationCoords()
     const [res, userRes] = await Promise.all([
       studySignApi.index({
@@ -379,6 +526,42 @@ onMounted(async () => {
 
 .seated-card {
   margin-bottom: 18px;
+}
+
+.light-entry {
+  flex: none;
+}
+
+.light-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.light-seat {
+  margin: 0;
+  color: var(--sr-ink-2);
+  font-size: 13px;
+
+  strong {
+    margin-left: 6px;
+    color: var(--sr-ink);
+    font-size: 15px;
+  }
+}
+
+.light-tip {
+  margin: 0;
+  color: var(--sr-muted);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.light-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
 }
 
 .seated-list {

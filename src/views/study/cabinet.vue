@@ -171,14 +171,15 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
-import { studyMiscApi } from '@/api/study/misc'
+import { studyCabinetApi } from '@/api/study/cabinet'
 import { studyUserApi } from '@/api/study/user'
 import useStudyStore from '@/store/modules/study'
 import { formatMoney } from '@/utils/study/value'
 import { useLatestRequest } from '@/composables/study/useLatestRequest'
+import { usePayParams } from '@/composables/study/usePayParams'
 import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
 import { useVenueOptions } from '@/composables/study/useVenueOptions'
 
@@ -211,7 +212,7 @@ const leaseResult = ref(null)
 const payParams = ref(null)
 const payLoading = ref(false)
 
-const payParamsText = computed(() => (payParams.value ? JSON.stringify(payParams.value, null, 2) : ''))
+const { payParamsText, copyPayParams } = usePayParams(payParams)
 
 async function loadVenues() {
   try {
@@ -230,7 +231,7 @@ async function loadMyGrids(seq) {
   }
   myLoading.value = true
   try {
-    const res = await studyMiscApi.cabinetUserGridList(venueId.value)
+    const res = await studyCabinetApi.userGridList(venueId.value)
     if (!loadRequest.isLatest(seq)) {
       return
     }
@@ -252,7 +253,7 @@ async function loadCabinets(seq) {
   activeCabinetId.value = null
   grids.value = []
   try {
-    const res = await studyMiscApi.cabinetVenueList(venueId.value)
+    const res = await studyCabinetApi.venueList(venueId.value)
     if (!loadRequest.isLatest(seq)) {
       return
     }
@@ -269,7 +270,7 @@ async function loadCabinets(seq) {
 async function loadOrders(seq) {
   orderLoading.value = true
   try {
-    const res = await studyMiscApi.cabinetLeaseOrderList()
+    const res = await studyCabinetApi.leaseOrderList()
     if (!loadRequest.isLatest(seq)) {
       return
     }
@@ -305,7 +306,7 @@ async function openCabinet(cabinet) {
   gridLoading.value = true
   grids.value = []
   try {
-    const res = await studyMiscApi.cabinetGridList(cabinet.cabinetId)
+    const res = await studyCabinetApi.gridList(cabinet.cabinetId)
     grids.value = res?.data?.list || []
   } catch (e) {
     store.handleApiError(e)
@@ -319,7 +320,7 @@ async function openPrice(grid) {
   priceLoading.value = true
   price.value = null
   try {
-    const res = await studyMiscApi.cabinetGridPrice(grid.gridId)
+    const res = await studyCabinetApi.gridPrice(grid.gridId)
     price.value = res?.data || null
   } catch (e) {
     store.handleApiError(e)
@@ -338,7 +339,7 @@ async function submitLease() {
   }
   leasing.value = true
   try {
-    const res = await studyMiscApi.cabinetLeaseCommit({
+    const res = await studyCabinetApi.leaseCommit({
       amount: price.value.price,
       startDate: price.value.startDate,
       endDate: price.value.endDate,
@@ -373,25 +374,12 @@ async function loadLeasePayParams() {
       ElMessage.warning('未获取到小程序用户信息，请刷新后重试')
       return
     }
-    const res = await studyMiscApi.cabinetLeasePay(leaseResult.value.id, miniUserId.value)
+    const res = await studyCabinetApi.leasePay(leaseResult.value.id, miniUserId.value)
     payParams.value = res?.data || null
   } catch (e) {
     store.handleApiError(e)
   } finally {
     payLoading.value = false
-  }
-}
-
-async function copyPayParams() {
-  if (!payParamsText.value) {
-    ElMessage.warning('请先获取支付参数')
-    return
-  }
-  try {
-    await navigator.clipboard.writeText(payParamsText.value)
-    ElMessage.success('支付参数已复制')
-  } catch (e) {
-    ElMessage.warning('当前浏览器不支持自动复制，请手动选择复制')
   }
 }
 
@@ -404,7 +392,7 @@ function openGrid(grid) {
   })
     .then(async () => {
       try {
-        await studyMiscApi.cabinetWifiOpen(grid.gripId)
+        await studyCabinetApi.wifiOpen(grid.gripId)
         ElMessage.success('开锁指令已发送')
       } catch (e) {
         store.handleApiError(e)
@@ -426,7 +414,7 @@ function checkoutLease(grid) {
   )
     .then(async () => {
       try {
-        await studyMiscApi.cabinetLeaseAutoCheckout(grid.lastLeaseId)
+        await studyCabinetApi.leaseAutoCheckout(grid.lastLeaseId)
         ElMessage.success('已提交退租')
         loadAll()
       } catch (e) {

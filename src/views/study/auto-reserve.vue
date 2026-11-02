@@ -5,15 +5,16 @@
         <div>
           <p class="sr-eyebrow">自习室 · 自动预约</p>
           <h1 class="sr-title">自动预约</h1>
-          <p class="sr-sub">按放号时刻自动抢座；只在勾选的星期执行，冲突或没有新放号日期时本轮记为失败。</p>
+          <p class="sr-sub">按放号时刻自动抢座，可同时开启到点自动签到；只在勾选的星期执行，冲突或没有新放号日期时本轮记为失败。</p>
         </div>
         <div class="sr-actions">
           <span v-if="releaseTime" class="sr-updated">
             放号时刻 <span class="sr-mono">{{ releaseTime }}</span>
+            · 自动签到 <span class="sr-mono">{{ signInEnable === 1 ? '开启' : '关闭' }}</span>
           </span>
           <el-button @click="goSetting">
             <el-icon><Setting /></el-icon>
-            放号配置
+            放号与签到
           </el-button>
           <el-button :loading="loading" @click="reloadAll">
             <el-icon><Refresh /></el-icon>
@@ -29,7 +30,7 @@
       <div class="ar-tip sr-note" role="note">
         <el-icon><InfoFilled /></el-icon>
         <span v-if="releaseTime">
-          每天 <strong class="sr-mono">{{ releaseTime }}</strong> 触发启用中的任务；小程序 token 失效时任务会自动暂停，重新绑定后需手动恢复。
+          每天 <strong class="sr-mono">{{ releaseTime }}</strong> 触发启用中的任务；自动签到{{ signInEnable === 1 ? '已开启' : '未开启' }}。小程序 token 失效时任务会自动暂停，重新绑定后需手动恢复。
         </span>
         <span v-else>
           还没有读取到放号时刻，<el-button link type="primary" @click="goSetting">先去配置</el-button>后再创建任务。
@@ -123,6 +124,7 @@ const loading = ref(false)
 const loaded = ref(false)
 const loadError = ref('')
 const releaseTime = ref('')
+const signInEnable = ref(0)
 const executingId = ref(null)
 const actionLoadingId = ref(null)
 
@@ -184,8 +186,10 @@ async function loadReleaseTime() {
   try {
     const res = await studyAutoReserveApi.setting()
     releaseTime.value = clockOf(res?.data?.releaseTime) || ''
+    signInEnable.value = Number(res?.data?.signInEnable) === 1 ? 1 : 0
   } catch (e) {
     releaseTime.value = ''
+    signInEnable.value = 0
   }
 }
 

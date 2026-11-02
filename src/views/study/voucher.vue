@@ -124,7 +124,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
-import { studyMiscApi } from '@/api/study/misc'
+import { studyVoucherApi } from '@/api/study/voucher'
 import { studyVenueApi } from '@/api/study/venue'
 import useStudyStore from '@/store/modules/study'
 import { getCurrentLocationCoords } from '@/utils/study/location'
@@ -208,11 +208,11 @@ async function submit() {
 
   submitting.value = true
   try {
-    const payload = { venueId: venueId.value, code: code.value.trim() }
+    const payload = { venueId: venueId.value, receiptCode: code.value.trim() }
     const res =
       channel.value === 'douyin'
-        ? await studyMiscApi.douyinVerify(payload)
-        : await studyMiscApi.receiptConsume(payload)
+        ? await studyVoucherApi.douyinVerify(payload)
+        : await studyVoucherApi.receiptConsume(payload)
     result.value = res?.data || null
     ElMessage.success('核销请求已提交')
   } catch (e) {

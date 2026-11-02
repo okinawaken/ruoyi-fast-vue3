@@ -97,12 +97,17 @@ const usablePackages = computed(() => props.packages.filter(pkg => Number(pkg.ca
 
 watch(
   () => [props.packages, props.presetPackageId],
-  () => {
+  ([packages, presetId]) => {
+    // 有预约时签到首页给出的扣费套餐必须优先使用，否则上游不会按预约座位签到
+    if (presetId !== null && presetId !== undefined && presetId !== '') {
+      packageId.value = presetId
+      return
+    }
     if (packageId.value) {
       return
     }
-    const usable = props.packages.filter(pkg => Number(pkg.canUsePay) === 1)
-    packageId.value = props.presetPackageId ?? usable[0]?.id ?? null
+    const usable = (packages || []).filter(pkg => Number(pkg.canUsePay) === 1)
+    packageId.value = usable[0]?.id ?? null
   },
   { immediate: true }
 )
@@ -130,6 +135,14 @@ async function loadSignSeats() {
       signInUserPackageId: packageId.value,
       signAnotherFlag: 0
     })
+    // 当天有待签到预约时，上游会用预约座位直接完成签到，返回 signInFlag=1 而不是座位图
+    if (Number(res?.data?.signInFlag) === 1) {
+      ElMessage.success(res?.msg && res.msg !== '操作成功' ? res.msg : '预约座位签到成功')
+      seatAreas.value = []
+      selectedSeat.value = null
+      emit('signed')
+      return
+    }
     seatAreas.value = res?.data?.venueAreaList || []
     if (!seatAreas.value.length) {
       seatError.value = '该门店暂无可签到座位'

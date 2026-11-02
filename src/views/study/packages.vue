@@ -220,13 +220,14 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
 import { studyPackageApi } from '@/api/study/package'
 import useStudyStore from '@/store/modules/study'
 import { formatMoney } from '@/utils/study/value'
 import { filterReserveVenues } from '@/utils/study/venue'
+import { usePayParams } from '@/composables/study/usePayParams'
 import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
 
 const store = useStudyStore()
@@ -263,7 +264,7 @@ const order = ref(null)
 const payParams = ref(null)
 const payLoading = ref(false)
 
-const payParamsText = computed(() => (payParams.value ? JSON.stringify(payParams.value, null, 2) : ''))
+const { payParamsText, copyPayParams } = usePayParams(payParams)
 
 async function loadOptions() {
   try {
@@ -422,19 +423,6 @@ async function loadPayParams() {
     store.handleApiError(e)
   } finally {
     payLoading.value = false
-  }
-}
-
-async function copyPayParams() {
-  if (!payParamsText.value) {
-    ElMessage.warning('请先获取支付参数')
-    return
-  }
-  try {
-    await navigator.clipboard.writeText(payParamsText.value)
-    ElMessage.success('支付参数已复制')
-  } catch (e) {
-    ElMessage.warning('当前浏览器不支持自动复制，请手动选择复制')
   }
 }
 

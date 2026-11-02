@@ -8,11 +8,3 @@ export const studyTokenApi = {
   bind: token => request.post('/business/study/token/bind', { token }),
   unbind: () => request.delete('/business/study/token/unbind')
 }
-
-/**
- * 自习室 - 全局配置与公告
- */
-export const studyConfigApi = {
-  sys: () => request.get('/business/study/config/sys'),
-  notice: venueId => request.get('/business/study/config/notice', { params: { venueId } })
-}
