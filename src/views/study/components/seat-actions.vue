@@ -139,7 +139,7 @@ function venueLocation() {
     return props.fallbackCoords
   }
   const nearestList = Array.isArray(props.signData?.venueNearestList) ? props.signData.venueNearestList : []
-  const seatVenueId = props.item?.venueId ?? props.signData?.seatCurrent?.venueId
+  const seatVenueId = props.item?.venueId ?? props.item?.venue?.id ?? props.signData?.seatCurrent?.venueId
   const matched = nearestList.find(venue => Number(venue.id) === Number(seatVenueId))
   const fallback = matched || props.signData?.venueNearest
   const lng = Number(fallback?.venueLng)

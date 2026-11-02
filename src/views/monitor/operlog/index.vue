@@ -39,7 +39,7 @@
                   v-for="dict in sys_oper_type"
                   :key="dict.value"
                   :label="dict.label"
-                  :value="dict.value"
+                  :value="Number(dict.value)"
                />
             </el-select>
          </el-form-item>
@@ -54,7 +54,7 @@
                   v-for="dict in sys_common_status"
                   :key="dict.value"
                   :label="dict.label"
-                  :value="dict.value"
+                  :value="Number(dict.value)"
                />
             </el-select>
          </el-form-item>
@@ -109,7 +109,7 @@
 
       <el-table ref="operlogRef" v-loading="loading" :data="operlogList" @selection-change="handleSelectionChange" :default-sort="defaultSort" @sort-change="handleSortChange">
          <el-table-column type="selection" width="50" align="center" />
-         <el-table-column label="日志编号" align="center" prop="operId" />
+         <el-table-column label="日志编号" align="center" prop="id" />
          <el-table-column label="系统模块" align="center" prop="title" :show-overflow-tooltip="true" />
          <el-table-column label="操作类型" align="center" prop="businessType">
             <template #default="scope">
@@ -118,7 +118,6 @@
          </el-table-column>
          <el-table-column label="请求方式" align="center" prop="requestMethod" />
          <el-table-column label="操作人员" align="center" width="110" prop="operName" :show-overflow-tooltip="true" sortable="custom" :sort-orders="['descending', 'ascending']" />
-         <el-table-column label="部门" align="center" prop="deptName" width="130" :show-overflow-tooltip="true" />
          <el-table-column label="操作地址" align="center" prop="operIp" width="130" :show-overflow-tooltip="true" />
          <el-table-column label="操作地点" align="center" prop="operLocation" :show-overflow-tooltip="true" />
         <el-table-column label="操作状态" align="center" prop="status">
@@ -126,9 +125,9 @@
                <dict-tag :options="sys_common_status" :value="scope.row.status" />
             </template>
          </el-table-column>
-         <el-table-column label="操作日期" align="center" prop="operTime" width="180" sortable="custom" :sort-orders="['descending', 'ascending']">
+         <el-table-column label="操作日期" align="center" prop="createTime" width="180" sortable="custom" :sort-orders="['descending', 'ascending']">
             <template #default="scope">
-               <span>{{ parseTime(scope.row.operTime) }}</span>
+               <span>{{ parseTime(scope.row.createTime) }}</span>
             </template>
          </el-table-column>
          <el-table-column label="消耗时间" align="center" prop="costTime" width="110" :show-overflow-tooltip="true" sortable="custom" :sort-orders="['descending', 'ascending']">
@@ -158,7 +157,7 @@
                <el-col :span="24">
                   <el-form-item
                     label="登录信息："
-                  >{{ form.operName }} / {{form.deptName}} / {{ form.operIp }} / {{ form.operLocation }}</el-form-item>
+                  >{{ form.operName }} / {{ form.operIp }} / {{ form.operLocation }}</el-form-item>
                </el-col>
                <el-col :span="12">
                   <el-form-item label="请求信息：">{{ form.requestMethod }} {{form.operUrl }}</el-form-item>
@@ -185,7 +184,7 @@
                   <el-form-item label="消耗时间：">{{ form.costTime }}毫秒</el-form-item>
                </el-col>
                <el-col :span="10">
-                  <el-form-item label="操作时间：">{{ parseTime(form.operTime) }}</el-form-item>
+                  <el-form-item label="操作时间：">{{ parseTime(form.createTime) }}</el-form-item>
                </el-col>
                <el-col :span="24">
                   <el-form-item label="异常信息：" v-if="form.status === 0">{{ form.errorMsg }}</el-form-item>
@@ -217,7 +216,7 @@ const multiple = ref(true);
 const total = ref(0);
 const title = ref("");
 const dateRange = ref([]);
-const defaultSort = ref({ prop: "operTime", order: "descending" });
+const defaultSort = ref({ prop: "createTime", order: "descending" });
 
 const data = reactive({
   form: {},
@@ -234,7 +233,7 @@ const data = reactive({
 
 const { queryParams, form } = toRefs(data);
 
-/** 查询登录日志 */
+/** 查询操作日志 */
 function getList() {
   loading.value = true;
   list(proxy.addDateRange(queryParams.value, dateRange.value)).then(response => {
@@ -261,7 +260,7 @@ function resetQuery() {
 }
 /** 多选框选中数据 */
 function handleSelectionChange(selection) {
-  ids.value = selection.map(item => item.operId);
+  ids.value = selection.map(item => item.id);
   multiple.value = !selection.length;
 }
 /** 排序触发事件 */
@@ -277,7 +276,7 @@ function handleView(row) {
 }
 /** 删除按钮操作 */
 function handleDelete(row) {
-  const operIds = row.operId || ids.value;
+  const operIds = row.id || ids.value;
   proxy.$modal.confirm('是否确认删除日志编号为"' + operIds + '"的数据项?').then(function () {
     return delOperlog(operIds);
   }).then(() => {

@@ -376,11 +376,17 @@ async function submitBuy() {
   if (buying.value || !detail.value) {
     return
   }
+  if (!buyForm.venueId) {
+    ElMessage.warning('请选择使用门店')
+    return
+  }
   buying.value = true
   try {
     const res = await studyPackageApi.v2Confirm({
       packageId: detail.value.id,
-      venueId: buyForm.venueId || undefined,
+      venueId: buyForm.venueId,
+      // 后端确认下单接口要求购买数量，页面暂不支持多份，固定 1 份
+      purchaseNum: 1,
       seatAreaId: buyForm.seatAreaId || undefined,
       packageType: detail.value.packageType || undefined
     })
@@ -400,14 +406,15 @@ async function loadPayParams() {
   if (!order.value || payLoading.value) {
     return
   }
-  const orderId = order.value.orderId || order.value.id
-  if (!orderId) {
+  // 后端支付下单接口只接收 userOrderId，不能传 orderId / id
+  const userOrderId = order.value.userOrderId
+  if (!userOrderId) {
     ElMessage.warning('订单号缺失，无法获取支付参数')
     return
   }
   payLoading.value = true
   try {
-    const res = await studyPackageApi.payOrder({ orderId })
+    const res = await studyPackageApi.payOrder({ userOrderId })
     payParams.value = res?.data || null
   } catch (e) {
     store.handleApiError(e)

@@ -13,9 +13,9 @@
                      @keyup.enter="handleQuery"
                   />
                </el-form-item>
-               <el-form-item label="手机号码" prop="phonenumber">
+               <el-form-item label="手机号码" prop="phoneNumber">
                   <el-input
-                     v-model="queryParams.phonenumber"
+                     v-model="queryParams.phoneNumber"
                      placeholder="请输入手机号码"
                      clearable
                      style="width: 240px"
@@ -33,7 +33,7 @@
                         v-for="dict in sys_normal_disable"
                         :key="dict.value"
                         :label="dict.label"
-                        :value="dict.value"
+                        :value="Number(dict.value)"
                      />
                   </el-select>
                </el-form-item>
@@ -89,15 +89,15 @@
 
             <el-table v-loading="loading" :data="userList" @selection-change="handleSelectionChange">
                <el-table-column type="selection" width="50" align="center" />
-               <el-table-column label="用户编号" align="center" key="userId" prop="userId" v-if="columns[0].visible" />
+               <el-table-column label="用户编号" align="center" key="id" prop="id" v-if="columns[0].visible" />
                <el-table-column label="用户名称" align="center" key="userName" prop="userName" v-if="columns[1].visible" :show-overflow-tooltip="true" />
-               <el-table-column label="手机号码" align="center" key="phonenumber" prop="phonenumber" v-if="columns[2].visible" width="120" />
+               <el-table-column label="手机号码" align="center" key="phoneNumber" prop="phoneNumber" v-if="columns[2].visible" width="120" />
                <el-table-column label="状态" align="center" key="status" v-if="columns[3].visible">
                   <template #default="scope">
                      <el-switch
                         v-model="scope.row.status"
-                        active-value="1"
-                        inactive-value="0"
+                        :active-value="1"
+                        :inactive-value="0"
                         @change="handleStatusChange(scope.row)"
                      ></el-switch>
                   </template>
@@ -109,13 +109,13 @@
                </el-table-column>
                <el-table-column label="操作" align="center" width="150" class-name="small-padding fixed-width">
                   <template #default="scope">
-                     <el-tooltip content="修改" placement="top" v-if="scope.row.userId !== 1">
+                     <el-tooltip content="修改" placement="top" v-if="scope.row.id !== 1">
                         <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:user:edit']"></el-button>
                      </el-tooltip>
-                     <el-tooltip content="删除" placement="top" v-if="scope.row.userId !== 1">
+                     <el-tooltip content="删除" placement="top" v-if="scope.row.id !== 1">
                         <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['system:user:remove']"></el-button>
                      </el-tooltip>
-                     <el-tooltip content="重置密码" placement="top" v-if="scope.row.userId !== 1">
+                     <el-tooltip content="重置密码" placement="top" v-if="scope.row.id !== 1">
                          <el-button link type="primary" icon="Key" @click="handleResetPwd(scope.row)" v-hasPermi="['system:user:resetPwd']"></el-button>
                      </el-tooltip>
                   </template>
@@ -136,19 +136,19 @@
          <el-form :model="form" :rules="rules" ref="userRef" label-width="80px">
             <el-row>
                <el-col :span="12">
-                  <el-form-item label="手机号码" prop="phonenumber">
-                     <el-input v-model="form.phonenumber" placeholder="请输入手机号码" maxlength="11" />
+                  <el-form-item label="手机号码" prop="phoneNumber">
+                     <el-input v-model="form.phoneNumber" placeholder="请输入手机号码" maxlength="11" />
                   </el-form-item>
                </el-col>
             </el-row>
             <el-row>
                <el-col :span="12">
-                  <el-form-item v-if="form.userId == undefined" label="用户名称" prop="userName">
+                  <el-form-item v-if="form.id == undefined" label="用户名称" prop="userName">
                      <el-input v-model="form.userName" placeholder="请输入用户名称" maxlength="30" />
                   </el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item v-if="form.userId == undefined" label="用户密码" prop="password">
+                  <el-form-item v-if="form.id == undefined" label="用户密码" prop="password">
                      <el-input v-model="form.password" placeholder="请输入用户密码" type="password" maxlength="20" show-password />
                   </el-form-item>
                </el-col>
@@ -161,7 +161,7 @@
                            v-for="dict in sys_user_sex"
                            :key="dict.value"
                            :label="dict.label"
-                           :value="dict.value"
+                           :value="Number(dict.value)"
                         ></el-option>
                      </el-select>
                   </el-form-item>
@@ -172,7 +172,7 @@
                         <el-radio
                            v-for="dict in sys_normal_disable"
                            :key="dict.value"
-                           :label="dict.value"
+                           :label="Number(dict.value)"
                         >{{ dict.label }}</el-radio>
                      </el-radio-group>
                   </el-form-item>
@@ -229,13 +229,13 @@ const data = reactive({
     pageNum: 1,
     pageSize: 30,
     userName: undefined,
-    phonenumber: undefined,
+    phoneNumber: undefined,
     status: undefined
   },
   rules: {
     userName: [{ required: true, message: "用户名称不能为空", trigger: "blur" }, { min: 2, max: 20, message: "用户名称长度必须介于 2 和 20 之间", trigger: "blur" }],
     password: [{ required: true, message: "用户密码不能为空", trigger: "blur" }, { min: 5, max: 20, message: "用户密码长度必须介于 5 和 20 之间", trigger: "blur" }],
-    phonenumber: [{ pattern: /^1[3|4|5|6|7|8|9][0-9]\d{8}$/, message: "请输入正确的手机号码", trigger: "blur" }]
+    phoneNumber: [{ pattern: /^1[3|4|5|6|7|8|9][0-9]\d{8}$/, message: "请输入正确的手机号码", trigger: "blur" }]
   }
 });
 
@@ -263,7 +263,7 @@ function resetQuery() {
 };
 /** 删除按钮操作 */
 function handleDelete(row) {
-  const userIds = row.userId || ids.value;
+  const userIds = row.id || ids.value;
   proxy.$modal.confirm('是否确认删除用户编号为"' + userIds + '"的数据项？').then(function () {
     return delUser(userIds);
   }).then(() => {
@@ -273,13 +273,13 @@ function handleDelete(row) {
 };
 /** 用户状态修改  */
 function handleStatusChange(row) {
-  let text = row.status === "1" ? "启用" : "停用";
+  let text = row.status === 1 ? "启用" : "停用";
   proxy.$modal.confirm('确认要"' + text + '""' + row.userName + '"用户吗?').then(function () {
-    return changeUserStatus(row.userId, row.status);
+    return changeUserStatus(row.id, row.status);
   }).then(() => {
     proxy.$modal.msgSuccess(text + "成功");
   }).catch(function () {
-    row.status = row.status === "0" ? "1" : "0";
+    row.status = row.status === 0 ? 1 : 0;
   });
 };
 /** 重置密码按钮操作 */
@@ -291,26 +291,26 @@ function handleResetPwd(row) {
     inputPattern: /^.{5,20}$/,
     inputErrorMessage: "用户密码长度必须介于 5 和 20 之间",
   }).then(({ value }) => {
-    resetUserPwd(row.userId, value).then(response => {
+    resetUserPwd(row.id, value).then(response => {
       proxy.$modal.msgSuccess("修改成功，新密码是：" + value);
     });
   }).catch(() => {});
 };
 /** 选择条数  */
 function handleSelectionChange(selection) {
-  ids.value = selection.map(item => item.userId);
+  ids.value = selection.map(item => item.id);
   single.value = selection.length != 1;
   multiple.value = !selection.length;
 };
 /** 重置操作表单 */
 function reset() {
   form.value = {
-    userId: undefined,
+    id: undefined,
     userName: undefined,
     password: undefined,
-    phonenumber: undefined,
+    phoneNumber: undefined,
     sex: undefined,
-    status: "1",
+    status: 1,
     remark: undefined
   };
   proxy.resetForm("userRef");
@@ -330,8 +330,8 @@ function handleAdd() {
 /** 修改按钮操作 */
 function handleUpdate(row) {
   reset();
-  const userId = row.userId || ids.value;
-  getUser(userId).then(response => {
+  const id = row.id || ids.value;
+  getUser(id).then(response => {
     form.value = response.data.user;
     open.value = true;
     title.value = "修改用户";
@@ -342,7 +342,7 @@ function handleUpdate(row) {
 function submitForm() {
   proxy.$refs["userRef"].validate(valid => {
     if (valid) {
-      if (form.value.userId != undefined) {
+      if (form.value.id != undefined) {
         updateUser(form.value).then(response => {
           proxy.$modal.msgSuccess("修改成功");
           open.value = false;

@@ -1042,7 +1042,7 @@ function clearAreaOptions() {
 function defaultSlot() {
   const openMin = parseTimeToMinutes(baseOpen.value)
   const closeMin = parseTimeToMinutes(baseClose.value)
-  const fallback = { start: '10:00', end: '15:00' }
+  const fallback = { start: '10:00', end: '17:00' }
   if (openMin === null || closeMin === null || closeMin - openMin < TIME_STEP_MINUTES) {
     return fallback
   }
@@ -1090,7 +1090,7 @@ async function loadFormVenue(venueId, { keepTimes = false } = {}) {
     baseClose.value = '23:59'
     if (!keepTimes) {
       form.startTime = '10:00'
-      form.endTime = '15:00'
+      form.endTime = '17:00'
       clearSeatSelection()
     }
     if (store.handleApiError(e)) {

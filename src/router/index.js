@@ -147,22 +147,10 @@ export const constantRoutes = [
         meta: { title: '参数设置', icon: 'edit' }
       },
       {
-        path: 'online',
-        component: () => import('@/views/monitor/online/index'),
-        name: 'Online',
-        meta: { title: '在线用户', icon: 'online' }
-      },
-      {
         path: 'operlog',
         component: () => import('@/views/monitor/operlog/index'),
         name: 'Operlog',
         meta: { title: '操作日志', icon: 'form' }
-      },
-      {
-        path: 'logininfo',
-        component: () => import('@/views/monitor/logininfo/index'),
-        name: 'Logininfo',
-        meta: { title: '登录日志', icon: 'logininfo' }
       },
       {
         path: 'dict-data/index/:dictId(\\d+)',

@@ -63,10 +63,10 @@
             <div v-if="cabinets.length" class="cabinet-list">
               <button
                 v-for="cabinet in cabinets"
-                :key="cabinet.id"
+                :key="cabinet.cabinetId"
                 type="button"
                 class="cabinet-item"
-                :class="{ 'is-active': Number(activeCabinetId) === Number(cabinet.id) }"
+                :class="{ 'is-active': Number(activeCabinetId) === Number(cabinet.cabinetId) }"
                 @click="openCabinet(cabinet)"
               >
                 <span class="cabinet-name">{{ cabinet.cabinetName }}</span>
@@ -174,13 +174,13 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
-import { studyMiscApi, studyVenueApi } from '@/api/study'
+import { studyMiscApi, studyUserApi, studyVenueApi } from '@/api/study'
 import useStudyStore from '@/store/modules/study'
-import useUserStore from '@/store/modules/user'
 import { filterReserveVenues, formatMoney } from '@/utils/study/format'
 
 const store = useStudyStore()
-const userStore = useUserStore()
+// 支付接口需要的小程序用户 ID，与后台登录用户 ID 不是同一套体系
+const miniUserId = ref(null)
 
 const venueList = ref([])
 const venueId = ref(null)
@@ -299,11 +299,12 @@ function onVenueChange() {
 }
 
 async function openCabinet(cabinet) {
-  activeCabinetId.value = cabinet.id
+  // 后端柜体 VO 的主键字段是 cabinetId
+  activeCabinetId.value = cabinet.cabinetId
   gridLoading.value = true
   grids.value = []
   try {
-    const res = await studyMiscApi.cabinetGridList(cabinet.id)
+    const res = await studyMiscApi.cabinetGridList(cabinet.cabinetId)
     grids.value = res?.data?.list || []
   } catch (e) {
     store.handleApiError(e)
@@ -362,7 +363,16 @@ async function loadLeasePayParams() {
   }
   payLoading.value = true
   try {
-    const res = await studyMiscApi.cabinetLeasePay(leaseResult.value.id, userStore.id)
+    // 支付接口的 userId 属于小程序用户体系，不能用后台登录用户 ID
+    if (!miniUserId.value) {
+      const userRes = await studyUserApi.detail()
+      miniUserId.value = userRes?.data?.id ?? null
+    }
+    if (!miniUserId.value) {
+      ElMessage.warning('未获取到小程序用户信息，请刷新后重试')
+      return
+    }
+    const res = await studyMiscApi.cabinetLeasePay(leaseResult.value.id, miniUserId.value)
     payParams.value = res?.data || null
   } catch (e) {
     store.handleApiError(e)

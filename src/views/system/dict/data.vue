@@ -5,7 +5,7 @@
             <el-select v-model="queryParams.dictType" style="width: 200px">
                <el-option
                   v-for="item in typeOptions"
-                  :key="item.dictId"
+                  :key="item.id"
                   :label="item.dictName"
                   :value="item.dictType"
                />
@@ -26,7 +26,7 @@
                   v-for="dict in sys_normal_disable"
                   :key="dict.value"
                   :label="dict.label"
-                  :value="dict.value"
+                  :value="Number(dict.value)"
                />
             </el-select>
          </el-form-item>
@@ -88,7 +88,7 @@
 
       <el-table v-loading="loading" :data="dataList" @selection-change="handleSelectionChange">
          <el-table-column type="selection" width="55" align="center" />
-         <el-table-column label="字典编码" align="center" prop="dictCode" />
+         <el-table-column label="字典编码" align="center" prop="id" />
          <el-table-column label="字典标签" align="center" prop="dictLabel">
             <template #default="scope">
               <span v-if="(scope.row.listClass == '' || scope.row.listClass == 'default') && (scope.row.cssClass == '' || scope.row.cssClass == null)">{{ scope.row.dictLabel }}</span>
@@ -157,7 +157,7 @@
                   <el-radio
                      v-for="dict in sys_normal_disable"
                      :key="dict.value"
-                     :label="dict.value"
+                     :label="Number(dict.value)"
                   >{{ dict.label }}</el-radio>
                </el-radio-group>
             </el-form-item>
@@ -256,13 +256,13 @@ function cancel() {
 /** 表单重置 */
 function reset() {
   form.value = {
-    dictCode: undefined,
+    id: undefined,
     dictLabel: undefined,
     dictValue: undefined,
     cssClass: undefined,
     listClass: "default",
     dictSort: 0,
-    status: "1",
+    status: 1,
     remark: undefined
   };
   proxy.resetForm("dataRef");
@@ -291,14 +291,14 @@ function handleAdd() {
 }
 /** 多选框选中数据 */
 function handleSelectionChange(selection) {
-  ids.value = selection.map(item => item.dictCode);
+  ids.value = selection.map(item => item.id);
   single.value = selection.length != 1;
   multiple.value = !selection.length;
 }
 /** 修改按钮操作 */
 function handleUpdate(row) {
   reset();
-  const dictCode = row.dictCode || ids.value;
+  const dictCode = row.id || ids.value;
   getData(dictCode).then(response => {
     form.value = response.data;
     open.value = true;
@@ -309,7 +309,7 @@ function handleUpdate(row) {
 function submitForm() {
   proxy.$refs["dataRef"].validate(valid => {
     if (valid) {
-      if (form.value.dictCode != undefined) {
+      if (form.value.id != undefined) {
         updateData(form.value).then(response => {
           useDictStore().removeDict(queryParams.value.dictType);
           proxy.$modal.msgSuccess("修改成功");
@@ -329,7 +329,7 @@ function submitForm() {
 }
 /** 删除按钮操作 */
 function handleDelete(row) {
-  const dictCodes = row.dictCode || ids.value;
+  const dictCodes = row.id || ids.value;
   proxy.$modal.confirm('是否确认删除字典编码为"' + dictCodes + '"的数据项？').then(function() {
     return delData(dictCodes);
   }).then(() => {

@@ -295,7 +295,9 @@ const seatedList = computed(() => (Array.isArray(signData.value?.userSignInfoLis
  * 小程序里用的是 venueNearest.id，这里优先用已签到门店，避免定位漂移。
  */
 const guardVenueId = computed(() => {
-  const seatedVenueId = seatedList.value[0]?.venueId ?? signData.value?.seatCurrent?.venueId
+  const seated = seatedList.value[0]
+  // 后端在座记录可能只返回 venue 对象，兼容 venueId 与 venue.id 两种结构
+  const seatedVenueId = seated?.venueId ?? seated?.venue?.id ?? signData.value?.seatCurrent?.venueId
   if (seatedVenueId !== null && seatedVenueId !== undefined && seatedVenueId !== '') {
     return seatedVenueId
   }

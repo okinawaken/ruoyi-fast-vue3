@@ -19,13 +19,13 @@
                @keyup.enter="handleQuery"
             />
          </el-form-item>
-         <el-form-item label="系统内置" prop="configType">
-            <el-select v-model="queryParams.configType" placeholder="系统内置" clearable>
+         <el-form-item label="系统内置" prop="isSystem">
+            <el-select v-model="queryParams.isSystem" placeholder="系统内置" clearable>
                <el-option
                   v-for="dict in sys_yes_no"
                   :key="dict.value"
                   :label="dict.label"
-                  :value="dict.value"
+                  :value="Number(dict.value)"
                />
             </el-select>
          </el-form-item>
@@ -99,13 +99,13 @@
 
       <el-table v-loading="loading" :data="configList" @selection-change="handleSelectionChange">
          <el-table-column type="selection" width="55" align="center" />
-         <el-table-column label="参数主键" align="center" prop="configId" />
+         <el-table-column label="参数主键" align="center" prop="id" />
          <el-table-column label="参数名称" align="center" prop="configName" :show-overflow-tooltip="true" />
          <el-table-column label="参数键名" align="center" prop="configKey" :show-overflow-tooltip="true" />
          <el-table-column label="参数键值" align="center" prop="configValue" :show-overflow-tooltip="true" />
-         <el-table-column label="系统内置" align="center" prop="configType">
+         <el-table-column label="系统内置" align="center" prop="isSystem">
             <template #default="scope">
-               <dict-tag :options="sys_yes_no" :value="scope.row.configType" />
+               <dict-tag :options="sys_yes_no" :value="scope.row.isSystem" />
             </template>
          </el-table-column>
          <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
@@ -142,12 +142,12 @@
             <el-form-item label="参数键值" prop="configValue">
                <el-input v-model="form.configValue" placeholder="请输入参数键值" />
             </el-form-item>
-            <el-form-item label="系统内置" prop="configType">
-               <el-radio-group v-model="form.configType">
+            <el-form-item label="系统内置" prop="isSystem">
+               <el-radio-group v-model="form.isSystem">
                   <el-radio
                      v-for="dict in sys_yes_no"
                      :key="dict.value"
-                     :label="dict.value"
+                     :label="Number(dict.value)"
                   >{{ dict.label }}</el-radio>
                </el-radio-group>
             </el-form-item>
@@ -189,7 +189,7 @@ const data = reactive({
     pageSize: 30,
     configName: undefined,
     configKey: undefined,
-    configType: undefined
+    isSystem: undefined
   },
   rules: {
     configName: [{ required: true, message: "参数名称不能为空", trigger: "blur" }],
@@ -217,11 +217,11 @@ function cancel() {
 /** 表单重置 */
 function reset() {
   form.value = {
-    configId: undefined,
+    id: undefined,
     configName: undefined,
     configKey: undefined,
     configValue: undefined,
-    configType: "Y",
+    isSystem: 1,
     remark: undefined
   };
   proxy.resetForm("configRef");
@@ -239,7 +239,7 @@ function resetQuery() {
 }
 /** 多选框选中数据 */
 function handleSelectionChange(selection) {
-  ids.value = selection.map(item => item.configId);
+  ids.value = selection.map(item => item.id);
   single.value = selection.length != 1;
   multiple.value = !selection.length;
 }
@@ -252,7 +252,7 @@ function handleAdd() {
 /** 修改按钮操作 */
 function handleUpdate(row) {
   reset();
-  const configId = row.configId || ids.value;
+  const configId = row.id || ids.value;
   getConfig(configId).then(response => {
     form.value = response.data;
     open.value = true;
@@ -263,7 +263,7 @@ function handleUpdate(row) {
 function submitForm() {
   proxy.$refs["configRef"].validate(valid => {
     if (valid) {
-      if (form.value.configId != undefined) {
+      if (form.value.id != undefined) {
         updateConfig(form.value).then(response => {
           proxy.$modal.msgSuccess("修改成功");
           open.value = false;
@@ -281,7 +281,7 @@ function submitForm() {
 }
 /** 删除按钮操作 */
 function handleDelete(row) {
-  const configIds = row.configId || ids.value;
+  const configIds = row.id || ids.value;
   proxy.$modal.confirm('是否确认删除参数编号为"' + configIds + '"的数据项？').then(function () {
     return delConfig(configIds);
   }).then(() => {

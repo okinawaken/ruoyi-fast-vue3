@@ -33,7 +33,7 @@ const useUserStore = defineStore(
             const user = res.data.user
             this.roles = ['user']
             this.permissions = ['*:*:*']
-            this.id = user.userId
+            this.id = user.id
             this.name = user.userName
             resolve(res)
           }).catch(error => {
