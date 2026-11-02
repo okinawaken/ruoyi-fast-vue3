@@ -61,7 +61,7 @@
                   :sign-data="signData"
                   :item="item"
                   :user-sign-id="resolveUserSignId(item)"
-                  :fallback-venue-id="signForm.venueId"
+                  :fallback-venue-id="signVenueId"
                   :venue-name="selectedVenueName"
                   :fallback-coords="actionCoords"
                   @refresh="loadIndex"
@@ -76,125 +76,21 @@
         </section>
 
         <!-- 门禁 -->
-        <section class="sr-card guard-card">
-          <div class="sr-card-head">
-            <h2 class="sr-card-title">
-              门禁
-              <span class="sr-count">{{ guardList.length }}</span>
-            </h2>
-            <div class="guard-head-meta">
-              <span class="sr-chip sr-chip-muted guard-venue">
-                <el-icon><Location /></el-icon>
-                <span class="guard-venue-name">{{ guardVenueName || '当前门店' }}</span>
-              </span>
-            </div>
-            <el-button class="guard-refresh" text size="small" :loading="guardLoading" aria-label="刷新门禁" @click="loadGuardList">
-              <el-icon class="refresh-icon"><Refresh /></el-icon>
-              刷新
-            </el-button>
-          </div>
-
-          <div v-if="guardError" class="sr-empty">
-            <el-empty :description="guardError" :image-size="46" />
-          </div>
-
-          <div v-else class="guard-body" v-loading="guardLoading">
-            <div v-if="guardList.length" class="guard-list">
-              <div v-for="item in guardList" :key="item.id" class="guard-item">
-                <span class="guard-icon" :class="{ 'is-off': !canOpenGuard(item) }" aria-hidden="true">
-                  <el-icon><Lock /></el-icon>
-                </span>
-
-                <div class="guard-main">
-                  <strong>{{ item.areaAliasName || '门禁区域' }}</strong>
-                  <span class="guard-meta" :class="canOpenGuard(item) ? 'is-ok' : 'is-off'">
-                    <span class="sr-dot" aria-hidden="true"></span>
-                    {{ canOpenGuard(item) ? '可开门' : item.canNotOpenDesc || '暂不可开门' }}
-                  </span>
-                </div>
-
-                <div class="guard-action">
-                  <el-button
-                    v-if="canOpenGuard(item)"
-                    type="primary"
-                    :loading="guardOpeningId === item.id"
-                    @click="openGuard(item)"
-                  >
-                    开门
-                  </el-button>
-                  <el-button v-else disabled>开门</el-button>
-                </div>
-              </div>
-            </div>
-            <el-empty v-else description="当前门店暂无门禁区域" :image-size="46" />
-          </div>
-
-          <p class="guard-note">
-            <el-icon><InfoFilled /></el-icon>
-            <span>
-              {{ guardBleStatus || '点击开门会先做服务端校验，再由浏览器通过 TTLock 蓝牙连接门锁开锁；请使用 Chrome/Edge，并确保电脑在门锁附近。' }}
-            </span>
-          </p>
-        </section>
+        <GuardSection :venue-id="guardVenueId" :venue-name="guardVenueName" />
 
         <!-- 签到入座 -->
-        <section v-if="!seatedList.length" class="sr-card sign-in-card">
-          <div class="sr-card-head">
-            <h2 class="sr-card-title">签到入座</h2>
-            <span v-if="signData?.descNoSignIn" class="sr-card-sub">{{ signData.descNoSignIn }}</span>
-          </div>
-
-          <div class="sign-in-body">
-            <div class="sign-in-form">
-              <div class="si-field">
-                <label class="sr-field-label" for="signVenue">门店</label>
-                <el-select id="signVenue" v-model="signForm.venueId" placeholder="请选择门店" filterable>
-                  <el-option v-for="venue in venueOptions" :key="venue.id" :label="venue.venueName" :value="venue.id" />
-                </el-select>
-              </div>
-
-              <div class="si-field">
-                <label class="sr-field-label" for="signPackage">扣费套餐</label>
-                <el-select id="signPackage" v-model="signForm.packageId" placeholder="请选择套餐" filterable>
-                  <el-option
-                    v-for="pkg in usablePackages"
-                    :key="pkg.id"
-                    :label="`${pkg.packageName}（剩余 ${pkg.restTimeStr || pkg.restNum || '—'}）`"
-                    :value="pkg.id"
-                  />
-                </el-select>
-              </div>
-
-              <div v-if="qrNeedSignIn" class="si-field">
-                <label class="sr-field-label" for="signQr">门店二维码内容</label>
-                <el-input id="signQr" v-model="signForm.qrCode" placeholder="扫描门店前台二维码后粘贴内容" />
-              </div>
-
-              <div class="si-actions">
-                <el-button type="primary" :loading="seatLoading" @click="loadSignSeats">加载座位图</el-button>
-                <span class="si-hint">签到成功后会按所选套餐扣费。</span>
-              </div>
-            </div>
-
-            <div v-if="seatAreas.length || seatLoading || seatError" class="si-map">
-              <SeatMap
-                :venue-name="selectedVenueName"
-                :areas="seatAreas"
-                start-time=""
-                end-time=""
-                :selected-seat-id="selectedSeat ? selectedSeat.id : null"
-                :loading="seatLoading"
-                :error="seatError"
-                @select="onSelectSeat"
-                @retry="loadSignSeats"
-              />
-              <div v-if="selectedSeat" class="si-confirm">
-                <span>已选 <strong class="sr-mono">{{ selectedSeat.seatNumber }}</strong></span>
-                <el-button type="primary" :loading="signing" @click="confirmSignSeat">确认签到入座</el-button>
-              </div>
-            </div>
-          </div>
-        </section>
+        <SignInForm
+          v-if="!seatedList.length"
+          v-model:venue-id="signVenueId"
+          :venue-options="venueOptions"
+          :venue-name="selectedVenueName"
+          :packages="userPackages"
+          :preset-package-id="signData?.signInUserPackage?.id"
+          :qr-need-sign-in="qrNeedSignIn"
+          :description="signData?.descNoSignIn"
+          :coords="actionCoords"
+          @signed="loadIndex"
+        />
 
         <!-- 其他信息 -->
         <div class="sr-grid-2 sign-secondary">
@@ -250,16 +146,14 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { computed, onMounted, ref, watch } from 'vue'
 import StudyShell from './components/study-shell.vue'
-import SeatMap from './components/seat-map.vue'
 import SeatActions from './components/seat-actions.vue'
-import { studyGuardApi, studyPackageApi, studySignApi, studyUserApi, studyVenueApi } from '@/api/study'
+import GuardSection from './components/sign/guard-section.vue'
+import SignInForm from './components/sign/sign-in-form.vue'
+import { studyPackageApi, studySignApi, studyUserApi, studyVenueApi } from '@/api/study'
 import useStudyStore from '@/store/modules/study'
-import { DEFAULT_VENUE_QR_CODE } from '@/utils/study/constants'
 import { clockOf, currentClockText, filterReserveVenues, getCurrentLocationCoords, isHiddenVenue } from '@/utils/study/format'
-import { isWebBluetoothSupported, openLockByBle, requestLockDevice } from '@/utils/study/ttlock-ble'
 import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
 
 const store = useStudyStore()
@@ -272,22 +166,8 @@ const updatedAt = ref('--:--')
 
 const venueOptions = ref([])
 const userPackages = ref([])
-
-const signForm = reactive({ venueId: null, packageId: null, qrCode: DEFAULT_VENUE_QR_CODE })
+const signVenueId = ref(null)
 const venueCoords = ref(null)
-const seatAreas = ref([])
-const seatLoading = ref(false)
-const seatError = ref('')
-const selectedSeat = ref(null)
-const signing = ref(false)
-
-const guardList = ref([])
-const guardLoading = ref(false)
-const guardError = ref('')
-const guardOpeningId = ref(null)
-const guardBleStatus = ref('')
-/** 每个门禁记住用户选择过的蓝牙设备，避免每次开门都弹选择框 */
-const guardDeviceCache = new Map()
 
 const seatedList = computed(() => (Array.isArray(signData.value?.userSignInfoList) ? signData.value.userSignInfoList : []))
 
@@ -302,7 +182,7 @@ const guardVenueId = computed(() => {
   if (seatedVenueId !== null && seatedVenueId !== undefined && seatedVenueId !== '') {
     return seatedVenueId
   }
-  return signForm.venueId ?? signData.value?.venueNearest?.id ?? null
+  return signVenueId.value ?? signData.value?.venueNearest?.id ?? null
 })
 
 const guardVenueName = computed(() => {
@@ -330,11 +210,6 @@ function signInClockOf(item) {
   return clockOf(item?.signInTimeStr || item?.seatInfo?.signInTimeStr)
 }
 
-/** 门禁是否可提交开门（后端 canOpen 为 1） */
-function canOpenGuard(item) {
-  return Number(item?.canOpen) === 1
-}
-
 const signTotalNum = computed(() => {
   const value = Number(userOverview.value?.signTotalNum)
   return Number.isFinite(value) ? value : 0
@@ -344,10 +219,8 @@ const studyTotalText = computed(() => userOverview.value?.studyTotalTimeStr || '
 
 const qrNeedSignIn = computed(() => String(signData.value?.qrCodeNeedSignIn || '') === 'true')
 
-const usablePackages = computed(() => userPackages.value.filter(pkg => Number(pkg.canUsePay) === 1))
-
 const selectedVenueName = computed(() => {
-  const venue = venueOptions.value.find(item => Number(item.id) === Number(signForm.venueId))
+  const venue = venueOptions.value.find(item => Number(item.id) === Number(signVenueId.value))
   if (venue) {
     return venue.venueName
   }
@@ -355,11 +228,11 @@ const selectedVenueName = computed(() => {
   return nearest && !isHiddenVenue(nearest) ? nearest.venueName : ''
 })
 
-const selectedVenue = computed(() => venueOptions.value.find(item => Number(item.id) === Number(signForm.venueId)))
+const selectedVenue = computed(() => venueOptions.value.find(item => Number(item.id) === Number(signVenueId.value)))
 
 function venueLocation() {
   const nearestList = Array.isArray(signData.value?.venueNearestList) ? signData.value.venueNearestList : []
-  const matched = nearestList.find(item => Number(item.id) === Number(signForm.venueId))
+  const matched = nearestList.find(item => Number(item.id) === Number(signVenueId.value))
   const fallback = venueCoords.value || matched || selectedVenue.value || signData.value?.venueNearest
   const lng = Number(fallback?.venueLng)
   const lat = Number(fallback?.venueLat)
@@ -373,12 +246,12 @@ function venueLocation() {
 const actionCoords = computed(() => venueLocation())
 
 async function loadVenueCoords() {
-  if (!signForm.venueId) {
+  if (!signVenueId.value) {
     venueCoords.value = null
     return
   }
   try {
-    const res = await studyVenueApi.reserveDetail(signForm.venueId)
+    const res = await studyVenueApi.reserveDetail(signVenueId.value)
     venueCoords.value = res?.data || null
   } catch (e) {
     venueCoords.value = null
@@ -410,13 +283,7 @@ async function loadVenues() {
 async function loadPackages() {
   try {
     const res = await studyPackageApi.userPackageList()
-    const list = res?.data?.list || []
-    userPackages.value = list
-    if (!signForm.packageId) {
-      const preset = signData.value?.signInUserPackage
-      const usable = list.filter(pkg => Number(pkg.canUsePay) === 1)
-      signForm.packageId = preset?.id ?? usable[0]?.id ?? null
-    }
+    userPackages.value = res?.data?.list || []
   } catch (e) {
     userPackages.value = []
   }
@@ -434,7 +301,7 @@ async function loadIndex() {
       studySignApi.index({
         currentLng: lng,
         currentLat: lat,
-        venueId: signForm.venueId || undefined
+        venueId: signVenueId.value || undefined
       }),
       studyUserApi.index().catch(error => {
         store.handleApiError(error)
@@ -449,10 +316,10 @@ async function loadIndex() {
     if (nearest.length && !venueOptions.value.length) {
       venueOptions.value = nearest
     }
-    if (!signForm.venueId) {
+    if (!signVenueId.value) {
       // venueNearest 可能是「押金专用」等非可签到门店，命中隐藏关键词时回退到列表首个门店
       const nearestVenue = signData.value?.venueNearest
-      signForm.venueId =
+      signVenueId.value =
         (nearestVenue && !isHiddenVenue(nearestVenue) ? nearestVenue.id : null) ||
         venueOptions.value[0]?.id ||
         null
@@ -470,162 +337,8 @@ async function loadIndex() {
   }
 }
 
-async function loadGuardList() {
-  if (!store.isTokenValid || !guardVenueId.value) {
-    guardList.value = []
-    guardError.value = ''
-    return
-  }
-  guardLoading.value = true
-  guardError.value = ''
-  try {
-    const res = await studyGuardApi.select(Number(guardVenueId.value))
-    guardList.value = Array.isArray(res?.data?.guardList) ? res.data.guardList : []
-  } catch (e) {
-    guardList.value = []
-    if (!store.handleApiError(e)) {
-      guardError.value = e?.msg || '门禁列表加载失败，请稍后重试。'
-    }
-  } finally {
-    guardLoading.value = false
-  }
-}
-
-async function openGuard(item) {
-  if (!item || guardOpeningId.value) {
-    return
-  }
-  if (!canOpenGuard(item)) {
-    ElMessage.warning(item?.canNotOpenDesc || '当前门禁暂不可开')
-    return
-  }
-  if (!item.configJsonTwo) {
-    ElMessage.warning('后台未下发蓝牙钥匙，暂时无法开门')
-    return
-  }
-  if (!isWebBluetoothSupported()) {
-    ElMessage.warning('当前浏览器不支持蓝牙开门，请使用 Chrome 或 Edge')
-    return
-  }
-
-  guardOpeningId.value = item.id
-  guardBleStatus.value = '正在准备蓝牙设备...'
-  try {
-    let device = guardDeviceCache.get(item.id)
-    if (!device) {
-      // 设备选择框必须在用户点击手势内弹出，不能等服务端请求之后再弹
-      device = await requestLockDevice()
-      guardDeviceCache.set(item.id, device)
-    }
-
-    guardBleStatus.value = '正在提交服务端校验...'
-    try {
-      await studyGuardApi.open(item.id)
-    } catch (e) {
-      if (!store.handleApiError(e)) {
-        ElMessage.error(e?.msg || '开门失败')
-      }
-      return
-    }
-
-    await openLockByBle(device, item.configJsonTwo, {
-      onProgress: text => {
-        guardBleStatus.value = text
-      }
-    })
-    ElMessage.success('开门成功')
-    await loadGuardList()
-  } catch (e) {
-    guardDeviceCache.delete(item.id)
-    if (e?.cancelled) {
-      ElMessage.info(e.message)
-    } else {
-      ElMessage.error(e?.message || e?.msg || '蓝牙开锁失败')
-    }
-  } finally {
-    guardOpeningId.value = null
-    guardBleStatus.value = ''
-  }
-}
-
-async function loadSignSeats() {
-  if (!signForm.venueId) {
-    ElMessage.warning('请选择门店')
-    return
-  }
-  if (!signForm.packageId) {
-    ElMessage.warning('请选择扣费套餐')
-    return
-  }
-  if (qrNeedSignIn.value && !signForm.qrCode.trim()) {
-    ElMessage.warning('请填写门店二维码内容')
-    return
-  }
-  seatLoading.value = true
-  seatError.value = ''
-  selectedSeat.value = null
-  try {
-    const res = await studySignApi.seatList({
-      venueId: signForm.venueId,
-      qrCode: signForm.qrCode.trim() || undefined,
-      signInUserPackageId: signForm.packageId,
-      signAnotherFlag: 0
-    })
-    seatAreas.value = res?.data?.venueAreaList || []
-    if (!seatAreas.value.length) {
-      seatError.value = '该门店暂无可签到座位'
-    }
-  } catch (e) {
-    seatAreas.value = []
-    seatError.value = e?.msg || '座位图加载失败，请稍后重试。'
-    store.handleApiError(e)
-  } finally {
-    seatLoading.value = false
-  }
-}
-
-function onSelectSeat(payload) {
-  if (!payload?.seat) {
-    return
-  }
-  selectedSeat.value = {
-    id: payload.seat.id,
-    seatNumber: payload.seat.seatNumber || '',
-    areaName: payload.areaName || ''
-  }
-}
-
-async function confirmSignSeat() {
-  if (!selectedSeat.value || signing.value) {
-    return
-  }
-  if (qrNeedSignIn.value && !signForm.qrCode.trim()) {
-    ElMessage.warning('请填写门店二维码内容')
-    return
-  }
-  signing.value = true
-  try {
-    const location = venueLocation()
-    const res = await studySignApi.seatConfirm({
-      seatId: selectedSeat.value.id,
-      currentLng: location.lng,
-      currentLat: location.lat,
-      signInUserPackageId: signForm.packageId,
-      signAnotherFlag: 0
-    })
-    ElMessage.success(res?.data?.studyTipText || '签到成功')
-    selectedSeat.value = null
-    seatAreas.value = []
-    await loadIndex()
-  } catch (e) {
-    store.handleApiError(e)
-  } finally {
-    signing.value = false
-  }
-}
-
 watch(
-  () => signForm.venueId,
+  () => signVenueId.value,
   value => {
     if (value) {
       loadVenueCoords()
@@ -633,12 +346,7 @@ watch(
   }
 )
 
-watch(guardVenueId, () => loadGuardList(), { immediate: true })
-
-useStudyRefresh(() => {
-  loadIndex()
-  loadGuardList()
-})
+useStudyRefresh(() => loadIndex())
 
 onMounted(async () => {
   store.ensureStatus()
@@ -721,64 +429,6 @@ onMounted(async () => {
   flex-wrap: wrap;
   gap: 10px;
   flex: none;
-}
-
-.sign-in-card {
-  margin-bottom: 18px;
-}
-
-.sign-in-body {
-  padding: 0 18px 18px;
-}
-
-.sign-in-form {
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-}
-
-.si-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-
-  :deep(.el-select) {
-    width: 220px;
-  }
-}
-
-.si-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding-bottom: 1px;
-}
-
-.si-hint {
-  color: var(--sr-muted-2);
-  font-size: 10.5px;
-}
-
-.si-map {
-  margin-top: 16px;
-}
-
-.si-confirm {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--sr-green-line);
-  border-radius: 10px;
-  background: var(--sr-green-soft);
-  color: var(--sr-green-ink);
-  font-size: 12px;
 }
 
 .sign-secondary {
@@ -885,164 +535,6 @@ onMounted(async () => {
   overflow-wrap: anywhere;
 }
 
-.guard-card {
-  margin-bottom: 18px;
-
-  .sr-card-head {
-    gap: 10px;
-  }
-}
-
-.guard-head-meta {
-  display: flex;
-  align-items: center;
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 46%;
-  margin-right: auto;
-}
-
-.guard-venue {
-  gap: 4px;
-  min-width: 0;
-  max-width: 100%;
-  color: var(--sr-muted);
-
-  .el-icon {
-    flex: none;
-    color: var(--sr-muted-2);
-    font-size: 12px;
-  }
-}
-
-.guard-venue-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.guard-refresh {
-  flex: none;
-  color: var(--sr-muted);
-}
-
-.guard-body {
-  min-height: 64px;
-
-  .el-empty {
-    padding: 16px 0;
-  }
-
-  :deep(.el-empty__description p) {
-    color: var(--sr-muted);
-    font-size: 12px;
-  }
-}
-
-.guard-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.guard-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 13px 18px;
-  border-top: 1px solid var(--sr-line);
-  transition: background-color 0.15s ease;
-}
-
-.guard-item:first-child {
-  border-top: 0;
-}
-
-.guard-item:hover {
-  background: var(--sr-card-2);
-}
-
-.guard-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--sr-green-line);
-  border-radius: 10px;
-  background: var(--sr-green-soft);
-  color: var(--sr-green-ink);
-  font-size: 16px;
-}
-
-.guard-icon.is-off {
-  border-color: var(--sr-line);
-  background: var(--sr-paper-2);
-  color: var(--sr-muted-2);
-}
-
-.guard-main {
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.guard-main strong {
-  display: block;
-  color: var(--sr-ink);
-  font-size: 13px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.guard-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 3px;
-  color: var(--sr-muted);
-  font-size: 11px;
-  overflow-wrap: anywhere;
-}
-
-.guard-meta.is-ok {
-  color: var(--sr-green-ink);
-}
-
-.guard-meta.is-off {
-  color: var(--sr-amber-ink);
-}
-
-.guard-action {
-  display: flex;
-  align-items: center;
-  flex: none;
-}
-
-.guard-action .el-button {
-  min-width: 78px;
-}
-
-.guard-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 7px;
-  margin: 0;
-  padding: 11px 18px 12px;
-  border-top: 1px solid var(--sr-line);
-  border-radius: 0 0 var(--sr-radius) var(--sr-radius);
-  background: var(--sr-card-2);
-  color: var(--sr-muted);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.guard-note .el-icon {
-  flex: none;
-  margin-top: 2px;
-  color: var(--sr-muted-2);
-}
-
 @media (max-width: 900px) {
   .seated-item {
     flex-direction: column;
@@ -1063,49 +555,6 @@ onMounted(async () => {
   .seated-card .sr-card-sub {
     flex: 1 1 100%;
     margin-top: 2px;
-  }
-
-  .guard-card .sr-card-head {
-    flex-wrap: wrap;
-  }
-
-  .guard-head-meta {
-    order: 3;
-    flex: 1 1 100%;
-    max-width: 100%;
-    margin-top: 2px;
-  }
-
-  .guard-refresh {
-    margin-left: auto;
-  }
-
-  .guard-item {
-    flex-wrap: wrap;
-  }
-
-  .guard-action {
-    flex: 1 1 100%;
-  }
-
-  .guard-action .el-button {
-    width: 100%;
-  }
-
-  .sign-in-body {
-    padding: 0 14px 14px;
-  }
-
-  .si-field {
-    flex: 1 1 100%;
-  }
-
-  .si-field :deep(.el-select) {
-    width: 100%;
-  }
-
-  .si-actions {
-    width: 100%;
   }
 
   .sign-stats {

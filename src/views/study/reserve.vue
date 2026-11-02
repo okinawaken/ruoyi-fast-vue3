@@ -153,7 +153,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
@@ -164,102 +164,76 @@ import ReserveSuccessDialog from './components/reserve-success-dialog.vue'
 import { studyReserveApi, studyVenueApi } from '@/api/study'
 import useStudyStore from '@/store/modules/study'
 import {
-  buildTimeOptions,
-  clampTimeSlot,
   filterReserveVenues,
-  formatDurationText,
   formatReserveRules,
-  getSeatDisplayState,
-  minutesToTime,
-  nextWholeHour,
   parseApiDate,
   parseTimeToMinutes,
   parseVenueOpenClose
 } from '@/utils/study/format'
-import {
-  DEFAULT_DURATION_MINUTES,
-  PAGE_PATH,
-  QUICK_HOURS,
-  RESERVE_ANOTHER_FLAG,
-  TIME_STEP_MINUTES
-} from '@/utils/study/constants'
+import { PAGE_PATH, RESERVE_ANOTHER_FLAG } from '@/utils/study/constants'
 import { useLatestRequest } from '@/composables/study/useLatestRequest'
 import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
+import { useReserveSlot } from '@/composables/study/useReserveSlot'
+import { useReserveSeatMap } from '@/composables/study/useReserveSeatMap'
 
 const store = useStudyStore()
 const router = useRouter()
-
-const DEFAULT_START_MINUTES = 10 * 60
 
 const checkInfo = ref(null)
 const venueList = ref([])
 const venueId = ref(null)
 const venueDetail = ref(null)
-const dateOptions = ref([])
-const dateValue = ref('')
-const openTime = ref('')
-const closeTime = ref('')
-const startTime = ref('')
-const endTime = ref('')
-const seatMap = ref(null)
-const selectedSeat = ref(null)
-const updatedAt = ref('')
 const initializing = ref(false)
 const loadError = ref('')
-const slotUnavailable = ref(false)
-const seatLoading = ref(false)
-const seatError = ref('')
 const submitting = ref(false)
 const confirmVisible = ref(false)
 const successVisible = ref(false)
 const confirmResult = ref(null)
 
 const pageRequest = useLatestRequest()
-const seatRequest = useLatestRequest()
-let seatReloadTimer = null
 
 const ineligible = computed(() => !!checkInfo.value && Number(checkInfo.value.reserveState) === 1)
+
+const {
+  dateOptions,
+  dateValue,
+  openTime,
+  closeTime,
+  startTime,
+  endTime,
+  slotUnavailable,
+  minDurationMinutes,
+  minHoursText,
+  startOptions,
+  endOptions,
+  quickHours,
+  selectedDateLabel,
+  durationText,
+  resolveSlot,
+  adjustTimesForToday,
+  resetSlotState
+} = useReserveSlot({ venueId })
+
+const {
+  seatMap,
+  selectedSeat,
+  updatedAt,
+  seatLoading,
+  seatError,
+  seatAreas,
+  holdMinutes,
+  loadSeatMap,
+  onSelectSeat,
+  clearSelection,
+  clearSeatReloadTimer,
+  scheduleSeatReload,
+  refreshSeats,
+  resetSeatState
+} = useReserveSeatMap({ venueId, dateValue, startTime, endTime, ineligible })
 
 const maxDaysText = computed(() => {
   const days = Number(store.config?.reserveMaxDays)
   return Number.isFinite(days) && days > 0 ? `可预约未来 ${days} 天` : ''
-})
-
-const minDurationMinutes = computed(() => {
-  const hours = Number(store.config?.reserveMinHours)
-  return (Number.isFinite(hours) && hours > 0 ? hours : 1) * 60
-})
-
-const minHoursText = computed(() => formatDurationText(minDurationMinutes.value))
-
-const timeOptions = computed(() => buildTimeOptions(openTime.value, closeTime.value, TIME_STEP_MINUTES))
-
-const startOptions = computed(() => {
-  const closeMin = parseTimeToMinutes(closeTime.value)
-  return timeOptions.value.filter(time => {
-    const value = parseTimeToMinutes(time)
-    return value !== null && (closeMin === null || value + minDurationMinutes.value <= closeMin)
-  })
-})
-
-const endOptions = computed(() => {
-  const startMin = parseTimeToMinutes(startTime.value)
-  if (startMin === null) {
-    return []
-  }
-  const minEnd = startMin + minDurationMinutes.value
-  const closeMin = parseTimeToMinutes(closeTime.value)
-  return timeOptions.value.filter(time => {
-    const value = parseTimeToMinutes(time)
-    return value !== null && value >= minEnd && (closeMin === null || value <= closeMin)
-  })
-})
-
-const quickHours = QUICK_HOURS
-
-const selectedDateLabel = computed(() => {
-  const matched = dateOptions.value.find(item => item.value === dateValue.value)
-  return matched ? matched.label : ''
 })
 
 const venueName = computed(() => {
@@ -272,16 +246,6 @@ const venueName = computed(() => {
   const matched = venueList.value.find(item => Number(item.id) === Number(venueId.value))
   return matched ? matched.venueName : ''
 })
-
-const seatAreas = computed(() => seatMap.value?.venueAreaList || [])
-
-const durationMinutes = computed(() => {
-  const start = parseTimeToMinutes(startTime.value)
-  const end = parseTimeToMinutes(endTime.value)
-  return start !== null && end !== null && end > start ? end - start : 0
-})
-
-const durationText = computed(() => (durationMinutes.value > 0 ? formatDurationText(durationMinutes.value) : ''))
 
 const reserveRules = computed(() => {
   const map = seatMap.value || {}
@@ -327,114 +291,6 @@ const confirmSeatText = computed(() => {
   return [selectedSeat.value.seatNumber, selectedSeat.value.areaName].filter(Boolean).join(' · ')
 })
 
-const holdMinutes = computed(() => {
-  const value = Number(seatMap.value?.reserveHoldMinutes ?? store.config?.reserveHoldMinutes)
-  return Number.isFinite(value) && value > 0 ? value : null
-})
-
-function nowMinutes() {
-  const now = new Date()
-  return now.getHours() * 60 + now.getMinutes()
-}
-
-function nowText() {
-  return minutesToTime(nowMinutes()) || '--:--'
-}
-
-function defaultSlot() {
-  const openMin = parseTimeToMinutes(openTime.value)
-  const closeMin = parseTimeToMinutes(closeTime.value)
-  let start = Math.max(DEFAULT_START_MINUTES, openMin === null ? DEFAULT_START_MINUTES : openMin)
-  if (closeMin !== null && start > closeMin) {
-    start = closeMin
-  }
-  let end = start + DEFAULT_DURATION_MINUTES
-  if (closeMin !== null && end > closeMin) {
-    end = closeMin
-  }
-  return clampTimeSlot(
-    { startTime: minutesToTime(start), endTime: minutesToTime(end) },
-    { open: openTime.value, close: closeTime.value, minMinutes: minDurationMinutes.value }
-  )
-}
-
-function baseSlot(openMin, closeMin) {
-  const last = store.lastSlot
-  if (last && Number(last.venueId) === Number(venueId.value)) {
-    const lastStart = parseTimeToMinutes(last.startTime)
-    const lastEnd = parseTimeToMinutes(last.endTime)
-    if (lastStart !== null && lastEnd !== null && lastEnd > lastStart && lastStart >= openMin && lastEnd <= closeMin) {
-      return clampTimeSlot(
-        { startTime: last.startTime, endTime: last.endTime },
-        { open: openTime.value, close: closeTime.value, minMinutes: minDurationMinutes.value }
-      )
-    }
-  }
-  return defaultSlot()
-}
-
-function resolveSlot(dateInfo, allowNextDate) {
-  const openMin = parseTimeToMinutes(openTime.value) ?? 0
-  const closeMin = parseTimeToMinutes(closeTime.value) ?? 1439
-  const base = baseSlot(openMin, closeMin)
-
-  if (dateInfo.isToday) {
-    const startMin = parseTimeToMinutes(base.startTime)
-    const endMin = parseTimeToMinutes(base.endTime)
-    const now = nowMinutes()
-    if (startMin !== null && startMin <= now) {
-      const duration = Math.max(minDurationMinutes.value, (endMin === null ? startMin : endMin) - startMin)
-      const nextHour = parseTimeToMinutes(nextWholeHour())
-      const candidate = nextHour !== null && nextHour > now ? Math.max(nextHour, openMin) : null
-
-      if (candidate === null || candidate + duration > closeMin) {
-        if (allowNextDate) {
-          const index = dateOptions.value.findIndex(item => item.value === dateInfo.value)
-          const nextDate = index >= 0 ? dateOptions.value[index + 1] : null
-          if (nextDate) {
-            const fresh = defaultSlot()
-            return { dateValue: nextDate.value, startTime: fresh.startTime, endTime: fresh.endTime }
-          }
-        }
-        return { dateValue: '', startTime: '', endTime: '', unavailable: true }
-      }
-      const clamped = clampTimeSlot(
-        { startTime: minutesToTime(candidate), endTime: minutesToTime(candidate + duration) },
-        { open: openTime.value, close: closeTime.value, minMinutes: minDurationMinutes.value }
-      )
-      return { dateValue: dateInfo.value, startTime: clamped.startTime, endTime: clamped.endTime }
-    }
-  }
-
-  return { dateValue: dateInfo.value, startTime: base.startTime, endTime: base.endTime }
-}
-
-function adjustTimesForToday() {
-  const dateInfo = dateOptions.value.find(item => item.value === dateValue.value)
-  if (!dateInfo || !dateInfo.isToday) {
-    return
-  }
-  const now = nowMinutes()
-  const startMin = parseTimeToMinutes(startTime.value)
-  if (startMin === null || startMin > now) {
-    return
-  }
-  const endMin = parseTimeToMinutes(endTime.value)
-  const duration = Math.max(minDurationMinutes.value, (endMin === null ? startMin : endMin) - startMin)
-  const openMin = parseTimeToMinutes(openTime.value) ?? 0
-  const nextHour = parseTimeToMinutes(nextWholeHour())
-  if (nextHour === null || nextHour <= now) {
-    return
-  }
-  const candidate = Math.max(nextHour, openMin)
-  const clamped = clampTimeSlot(
-    { startTime: minutesToTime(candidate), endTime: minutesToTime(candidate + duration) },
-    { open: openTime.value, close: closeTime.value, minMinutes: minDurationMinutes.value }
-  )
-  startTime.value = clamped.startTime
-  endTime.value = clamped.endTime
-}
-
 async function initialize() {
   if (!store.isTokenValid) {
     return
@@ -446,18 +302,8 @@ async function initialize() {
   venueList.value = []
   venueId.value = null
   venueDetail.value = null
-  dateOptions.value = []
-  dateValue.value = ''
-  openTime.value = ''
-  closeTime.value = ''
-  startTime.value = ''
-  endTime.value = ''
-  seatMap.value = null
-  seatLoading.value = false
-  seatError.value = ''
-  slotUnavailable.value = false
-  selectedSeat.value = null
-  updatedAt.value = ''
+  resetSlotState()
+  resetSeatState()
 
   try {
     const [checkRes, venueRes] = await Promise.all([
@@ -501,14 +347,13 @@ async function initialize() {
 async function loadVenueContext(seq) {
   loadError.value = ''
   slotUnavailable.value = false
-  seatLoading.value = true
   venueDetail.value = null
   dateOptions.value = []
   dateValue.value = ''
   startTime.value = ''
   endTime.value = ''
-  seatMap.value = null
-  seatError.value = ''
+  resetSeatState()
+  seatLoading.value = true
 
   try {
     const [detailRes, dateRes] = await Promise.all([
@@ -537,10 +382,7 @@ async function loadVenueContext(seq) {
 
     if (slot.unavailable) {
       slotUnavailable.value = true
-      selectedSeat.value = null
-      seatMap.value = null
-      seatError.value = ''
-      seatLoading.value = false
+      resetSeatState()
       return
     }
 
@@ -548,10 +390,7 @@ async function loadVenueContext(seq) {
     startTime.value = slot.startTime
     endTime.value = slot.endTime
 
-    await loadSeatMap(seq)
-    if (pageRequest.isLatest(seq)) {
-      seatLoading.value = false
-    }
+    await loadSeatMap()
   } catch (e) {
     if (!pageRequest.isLatest(seq)) {
       return
@@ -561,70 +400,6 @@ async function loadVenueContext(seq) {
       return
     }
     loadError.value = e?.msg || '门店或日期信息加载失败，请稍后重试。'
-  }
-}
-
-async function loadSeatMap(seq = pageRequest.current()) {
-  if (!store.isTokenValid || ineligible.value) {
-    return
-  }
-  if (!venueId.value || !dateValue.value || !startTime.value || !endTime.value) {
-    return
-  }
-
-  const requestSeq = seatRequest.next()
-  seatLoading.value = true
-  seatError.value = ''
-
-  try {
-    const res = await studyReserveApi.seatList({
-      venueId: venueId.value,
-      reserveDateStr: dateValue.value,
-      reserveStartTimeStr: startTime.value,
-      reserveEndTimeStr: endTime.value,
-      reserveAnotherFlag: RESERVE_ANOTHER_FLAG
-    })
-    if (!seatRequest.isLatest(requestSeq) || !pageRequest.isLatest(seq)) {
-      return
-    }
-    seatMap.value = res?.data || null
-    updatedAt.value = nowText()
-    validateSelectedSeat()
-  } catch (e) {
-    if (!seatRequest.isLatest(requestSeq) || !pageRequest.isLatest(seq)) {
-      return
-    }
-    seatMap.value = null
-    seatError.value = e?.msg || '座位图加载失败，请稍后重试。'
-    if (store.handleApiError(e, { openBind: true })) {
-      return
-    }
-  } finally {
-    if (seatRequest.isLatest(requestSeq) && pageRequest.isLatest(seq)) {
-      seatLoading.value = false
-    }
-  }
-}
-
-function findSeatById(seatId) {
-  const areas = seatMap.value?.venueAreaList || []
-  for (let i = 0; i < areas.length; i += 1) {
-    const seats = areas[i].venueAreaSeatList || []
-    const matched = seats.find(seat => String(seat.id) === String(seatId))
-    if (matched) {
-      return matched
-    }
-  }
-  return null
-}
-
-function validateSelectedSeat() {
-  if (!selectedSeat.value) {
-    return
-  }
-  const seat = findSeatById(selectedSeat.value.id)
-  if (!seat || !getSeatDisplayState(seat, startTime.value, endTime.value).selectable) {
-    selectedSeat.value = null
   }
 }
 
@@ -639,8 +414,7 @@ async function onVenueChange(value) {
   clearSeatReloadTimer()
   venueId.value = value
   store.rememberVenue(value)
-  selectedSeat.value = null
-  seatLoading.value = false
+  clearSelection()
   await loadVenueContext(seq)
 }
 
@@ -650,7 +424,7 @@ async function onDateChange(value) {
   }
   clearSeatReloadTimer()
   dateValue.value = value
-  selectedSeat.value = null
+  clearSelection()
 
   if (!startTime.value || !endTime.value) {
     const dateInfo = dateOptions.value.find(item => item.value === value)
@@ -660,7 +434,7 @@ async function onDateChange(value) {
       dateValue.value = ''
       startTime.value = ''
       endTime.value = ''
-      seatMap.value = null
+      resetSeatState()
       return
     }
     slotUnavailable.value = false
@@ -684,7 +458,7 @@ function onStartChange(value) {
       endTime.value = endOptions.value[0]
     }
   }
-  selectedSeat.value = null
+  clearSelection()
   scheduleSeatReload()
 }
 
@@ -693,7 +467,7 @@ function onEndChange(value) {
     return
   }
   endTime.value = value
-  selectedSeat.value = null
+  clearSelection()
   scheduleSeatReload()
 }
 
@@ -715,56 +489,8 @@ function onQuickDuration(hours) {
     chosen = notAfter.length ? notAfter[notAfter.length - 1] : endOptions.value[0]
   }
   endTime.value = chosen
-  selectedSeat.value = null
+  clearSelection()
   scheduleSeatReload()
-}
-
-function clearSeatReloadTimer() {
-  if (seatReloadTimer) {
-    clearTimeout(seatReloadTimer)
-    seatReloadTimer = null
-  }
-}
-
-function scheduleSeatReload() {
-  clearSeatReloadTimer()
-  seatReloadTimer = setTimeout(() => {
-    seatReloadTimer = null
-    loadSeatMap()
-  }, 220)
-}
-
-function onSelectSeat(payload) {
-  if (!store.requireToken()) {
-    return
-  }
-  if (ineligible.value || !payload || !payload.seat) {
-    return
-  }
-  const display = getSeatDisplayState(payload.seat, startTime.value, endTime.value)
-  if (!display.selectable) {
-    return
-  }
-  selectedSeat.value = {
-    id: payload.seat.id,
-    seatNumber: payload.seat.seatNumber || '',
-    areaName: payload.areaName || ''
-  }
-}
-
-function clearSelection() {
-  selectedSeat.value = null
-}
-
-function refreshSeats() {
-  if (!store.requireToken()) {
-    return
-  }
-  if (ineligible.value) {
-    return
-  }
-  clearSeatReloadTimer()
-  loadSeatMap()
 }
 
 function retrySeatMap() {
@@ -857,7 +583,7 @@ async function doSubmitReserve() {
 function handleSuccessClose(gotoOverview) {
   successVisible.value = false
   confirmResult.value = null
-  selectedSeat.value = null
+  clearSelection()
   loadSeatMap()
   if (gotoOverview) {
     router.push(PAGE_PATH.OVERVIEW)
@@ -868,10 +594,6 @@ useStudyRefresh(() => initialize())
 
 onMounted(() => {
   store.ensureStatus()
-})
-
-onBeforeUnmount(() => {
-  clearSeatReloadTimer()
 })
 </script>
 
