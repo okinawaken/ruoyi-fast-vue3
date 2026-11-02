@@ -160,7 +160,9 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import SeatPickerDialog from './seat-picker-dialog.vue'
-import { studyAutoReserveApi, studyReserveApi, studyVenueApi } from '@/api/study'
+import { studyAutoReserveApi } from '@/api/study/auto-reserve'
+import { studyReserveApi } from '@/api/study/reserve'
+import { studyVenueApi } from '@/api/study/venue'
 import useStudyStore from '@/store/modules/study'
 import {
   buildTimeOptions,
@@ -168,9 +170,9 @@ import {
   formatDurationText,
   minutesToTime,
   parseApiDate,
-  parseTimeToMinutes,
-  parseVenueOpenClose
-} from '@/utils/study/format'
+  parseTimeToMinutes
+} from '@/utils/study/time'
+import { parseVenueOpenClose } from '@/utils/study/venue'
 import {
   AUTO_RESERVE_WEEKDAYS,
   TIME_STEP_MINUTES

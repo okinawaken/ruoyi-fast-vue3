@@ -43,7 +43,7 @@
 
 <script setup>
 import { computed, onUnmounted, ref } from 'vue'
-import { formatDurationText, parseTimeToMinutes, clockOf } from '@/utils/study/format'
+import { clockOf, formatDurationText, parseTimeToMinutes } from '@/utils/study/time'
 
 const props = defineProps({
   signData: { type: Object, default: null },

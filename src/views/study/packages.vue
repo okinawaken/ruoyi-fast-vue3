@@ -223,9 +223,10 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
-import { studyPackageApi } from '@/api/study'
+import { studyPackageApi } from '@/api/study/package'
 import useStudyStore from '@/store/modules/study'
-import { filterReserveVenues, formatMoney } from '@/utils/study/format'
+import { formatMoney } from '@/utils/study/value'
+import { filterReserveVenues } from '@/utils/study/venue'
 import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
 
 const store = useStudyStore()

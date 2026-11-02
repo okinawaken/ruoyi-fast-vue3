@@ -22,7 +22,7 @@
 </template>
 
 <script setup>
-import { formatMoney } from '@/utils/study/format'
+import { formatMoney } from '@/utils/study/value'
 
 defineProps({
   orders: { type: Array, default: () => [] },

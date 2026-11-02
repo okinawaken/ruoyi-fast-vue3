@@ -52,7 +52,8 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { isEndedReserve, parseApiDate } from '@/utils/study/format'
+import { isEndedReserve } from '@/utils/study/reserve'
+import { parseApiDate } from '@/utils/study/time'
 
 const props = defineProps({
   list: { type: Array, default: () => [] },

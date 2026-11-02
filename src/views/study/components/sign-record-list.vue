@@ -47,7 +47,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { clockOf, parseApiDate } from '@/utils/study/format'
+import { clockOf, parseApiDate } from '@/utils/study/time'
 
 const props = defineProps({
   list: { type: Array, default: () => [] },

@@ -161,15 +161,12 @@ import ReserveFilter from './components/reserve-filter.vue'
 import SeatMap from './components/seat-map.vue'
 import ReserveSummary from './components/reserve-summary.vue'
 import ReserveSuccessDialog from './components/reserve-success-dialog.vue'
-import { studyReserveApi, studyVenueApi } from '@/api/study'
+import { studyReserveApi } from '@/api/study/reserve'
+import { studyVenueApi } from '@/api/study/venue'
 import useStudyStore from '@/store/modules/study'
-import {
-  filterReserveVenues,
-  formatReserveRules,
-  parseApiDate,
-  parseTimeToMinutes,
-  parseVenueOpenClose
-} from '@/utils/study/format'
+import { parseApiDate, parseTimeToMinutes } from '@/utils/study/time'
+import { formatReserveRules } from '@/utils/study/reserve'
+import { filterReserveVenues, parseVenueOpenClose } from '@/utils/study/venue'
 import { PAGE_PATH, RESERVE_ANOTHER_FLAG } from '@/utils/study/constants'
 import { useLatestRequest } from '@/composables/study/useLatestRequest'
 import { useStudyRefresh } from '@/composables/study/useStudyRefresh'

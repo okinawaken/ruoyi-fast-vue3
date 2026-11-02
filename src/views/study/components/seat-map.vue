@@ -84,7 +84,7 @@
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { getSeatDisplayState } from '@/utils/study/format'
+import { getSeatDisplayState } from '@/utils/study/seat'
 import SeatCard from './seat-card.vue'
 
 const props = defineProps({

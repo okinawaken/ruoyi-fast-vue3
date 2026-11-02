@@ -43,7 +43,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { parseApiDate } from '@/utils/study/format'
+import { parseApiDate } from '@/utils/study/time'
 
 const props = defineProps({
   open: { type: Boolean, default: false },

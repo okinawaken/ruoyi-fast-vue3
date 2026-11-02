@@ -1,6 +1,6 @@
 import { ref } from 'vue'
-import { studyVenueApi } from '@/api/study'
-import { filterReserveVenues } from '@/utils/study/format'
+import { studyVenueApi } from '@/api/study/venue'
+import { filterReserveVenues } from '@/utils/study/venue'
 
 async function loadReserveSelect() {
   const res = await studyVenueApi.reserveSelect()

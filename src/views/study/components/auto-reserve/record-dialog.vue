@@ -78,7 +78,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { studyAutoReserveApi } from '@/api/study'
+import { studyAutoReserveApi } from '@/api/study/auto-reserve'
 import useStudyStore from '@/store/modules/study'
 import {
   AUTO_RESERVE_RECORD_STATUS,

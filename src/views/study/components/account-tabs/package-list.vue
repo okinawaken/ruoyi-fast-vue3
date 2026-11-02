@@ -51,7 +51,7 @@
 </template>
 
 <script setup>
-import { formatTimestamp } from '@/utils/study/format'
+import { formatTimestamp } from '@/utils/study/value'
 
 defineProps({
   packages: { type: Array, default: () => [] },

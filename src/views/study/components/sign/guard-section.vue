@@ -64,7 +64,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { studyGuardApi } from '@/api/study'
+import { studyGuardApi } from '@/api/study/guard'
 import useStudyStore from '@/store/modules/study'
 import { isWebBluetoothSupported, openLockByBle, requestLockDevice } from '@/utils/study/ttlock-ble'
 import { useStudyRefresh } from '@/composables/study/useStudyRefresh'

@@ -80,7 +80,7 @@
 </template>
 
 <script setup>
-import { parseTimeToMinutes } from '@/utils/study/format'
+import { parseTimeToMinutes } from '@/utils/study/time'
 
 const props = defineProps({
   venueOptions: { type: Array, default: () => [] },

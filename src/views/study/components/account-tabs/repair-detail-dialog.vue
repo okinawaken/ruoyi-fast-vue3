@@ -27,7 +27,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { studyRepairApi } from '@/api/study'
+import { studyRepairApi } from '@/api/study/repair'
 import useStudyStore from '@/store/modules/study'
 import { useLatestRequest } from '@/composables/study/useLatestRequest'
 

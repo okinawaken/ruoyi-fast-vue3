@@ -1,7 +1,8 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { studyReserveApi } from '@/api/study'
+import { studyReserveApi } from '@/api/study/reserve'
 import useStudyStore from '@/store/modules/study'
-import { currentClockText, getSeatDisplayState } from '@/utils/study/format'
+import { currentClockText } from '@/utils/study/time'
+import { getSeatDisplayState } from '@/utils/study/seat'
 import { RESERVE_ANOTHER_FLAG } from '@/utils/study/constants'
 import { useLatestRequest } from './useLatestRequest'
 

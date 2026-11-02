@@ -124,9 +124,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import StudyShell from './components/study-shell.vue'
-import { studyMiscApi, studyVenueApi } from '@/api/study'
+import { studyMiscApi } from '@/api/study/misc'
+import { studyVenueApi } from '@/api/study/venue'
 import useStudyStore from '@/store/modules/study'
-import { getCurrentLocationCoords } from '@/utils/study/format'
+import { getCurrentLocationCoords } from '@/utils/study/location'
 import { useStudyRefresh } from '@/composables/study/useStudyRefresh'
 
 const store = useStudyStore()

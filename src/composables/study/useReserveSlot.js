@@ -6,7 +6,7 @@ import {
   minutesToTime,
   nextWholeHour,
   parseTimeToMinutes
-} from '@/utils/study/format'
+} from '@/utils/study/time'
 import {
   DEFAULT_DURATION_MINUTES,
   QUICK_HOURS,

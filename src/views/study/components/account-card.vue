@@ -77,8 +77,8 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import useStudyStore from '@/store/modules/study'
-import { studyUserApi } from '@/api/study'
-import { maskMobile } from '@/utils/study/format'
+import { studyUserApi } from '@/api/study/user'
+import { maskMobile } from '@/utils/study/value'
 
 const props = defineProps({
   user: { type: Object, default: null },

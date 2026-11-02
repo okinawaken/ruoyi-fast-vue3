@@ -62,7 +62,7 @@
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import SeatMap from '../seat-map.vue'
-import { studySignApi } from '@/api/study'
+import { studySignApi } from '@/api/study/sign'
 import useStudyStore from '@/store/modules/study'
 import { DEFAULT_VENUE_QR_CODE } from '@/utils/study/constants'
 

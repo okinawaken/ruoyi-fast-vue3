@@ -34,7 +34,7 @@
 <script setup>
 import { reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { studyRepairApi } from '@/api/study'
+import { studyRepairApi } from '@/api/study/repair'
 import useStudyStore from '@/store/modules/study'
 
 const props = defineProps({

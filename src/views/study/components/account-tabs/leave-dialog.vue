@@ -65,7 +65,7 @@
 <script setup>
 import { reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { studyLeaveApi } from '@/api/study'
+import { studyLeaveApi } from '@/api/study/leave'
 import useStudyStore from '@/store/modules/study'
 import { useLatestRequest } from '@/composables/study/useLatestRequest'
 

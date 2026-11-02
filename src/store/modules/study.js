@@ -1,13 +1,7 @@
 import { defineStore } from 'pinia'
-import { studyConfigApi, studyTokenApi } from '@/api/study'
-import {
-  isTokenInvalidError,
-  readLastSlot,
-  readLastVenueId,
-  toBool,
-  writeLastSlot,
-  writeLastVenueId
-} from '@/utils/study/format'
+import { studyConfigApi, studyTokenApi } from '@/api/study/token'
+import { isTokenInvalidError, toBool } from '@/utils/study/value'
+import { readLastSlot, readLastVenueId, writeLastSlot, writeLastVenueId } from '@/utils/study/storage'
 
 /**
  * 自习室全局状态：小程序 token 绑定状态、全局配置、最近一次预约时段

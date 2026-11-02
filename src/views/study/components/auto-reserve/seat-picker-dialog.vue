@@ -72,9 +72,10 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { studyReserveApi } from '@/api/study'
+import { studyReserveApi } from '@/api/study/reserve'
 import useStudyStore from '@/store/modules/study'
-import { getSeatDisplayState, parseApiDate } from '@/utils/study/format'
+import { parseApiDate } from '@/utils/study/time'
+import { getSeatDisplayState } from '@/utils/study/seat'
 import { SEAT_STATE } from '@/utils/study/constants'
 import { useLatestRequest } from '@/composables/study/useLatestRequest'
 
