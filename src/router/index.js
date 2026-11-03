@@ -147,12 +147,6 @@ export const constantRoutes = [
         meta: { title: '参数设置', icon: 'edit' }
       },
       {
-        path: 'operlog',
-        component: () => import('@/views/monitor/operlog/index'),
-        name: 'Operlog',
-        meta: { title: '操作日志', icon: 'form' }
-      },
-      {
         path: 'dict-data/index/:dictId(\\d+)',
         component: () => import('@/views/system/dict/data'),
         name: 'Data',
